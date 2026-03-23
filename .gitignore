@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Build outputs
+dist/
+build/
+.next/
+**/dist/
+**/build/
+
+# Prisma
+src/generated/
+**/generated/
+
+# Logs
+*.log
