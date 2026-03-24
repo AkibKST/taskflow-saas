@@ -5,7 +5,9 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { globalErrorHandler } from "./middleware/globalErrorHandler";
-// import authRoutes from "./modules/auth/auth.routes";
+import { sendResponse } from "./utils/sendResponse";
+import httpStatus from "http-status-codes";
+import authRoutes from "./modules/auth/auth.route";
 
 const app = express();
 
@@ -25,11 +27,21 @@ app.use(cookieParser());
 // Global rate limiter
 app.use(rateLimit({ windowMs: 60 * 1000, max: 100 }));
 
+// Test route
+app.get("/", (req, res) => {
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Welcome to TaskFlow SaaS API",
+    data: null,
+  });
+});
+
 // Health check
 app.get("/health", (_, res) => res.json({ status: "OK", time: new Date() }));
 
 // Routes
-// app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes);
 
 // 404 handler
 app.use((_, res) =>
