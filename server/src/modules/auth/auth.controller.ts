@@ -54,6 +54,7 @@ export const login = catchAsync(async (req, res) => {
   });
 });
 
+//Refresh token
 export const refresh = catchAsync(async (req, res) => {
   // Get token from cookies
   const token = req.cookies?.refreshToken;
@@ -100,13 +101,18 @@ export const refresh = catchAsync(async (req, res) => {
   });
 });
 
+// Logout
 export const logout = catchAsync(async (req, res) => {
   const token = req.cookies?.refreshToken;
 
   if (token)
     await prisma.refreshToken.updateMany({
-      where: { token },
-      data: { isRevoked: true },
+      where: {
+        token,
+      },
+      data: {
+        isRevoked: true,
+      },
     });
 
   // Clear cookie
