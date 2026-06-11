@@ -111,3 +111,26 @@ export const loginService = async (data: LoginInput) => {
     user: safeUser,
   };
 };
+
+export const logoutService = async (
+  refreshToken: string | undefined,
+  userId?: string,
+) => {
+  if (!refreshToken) return; // No token, nothing to revoke
+
+  // Build where clause: always match the token, optionally also match the userId
+  const where: { token: string; userId?: string } = { token: refreshToken };
+  if (userId) where.userId = userId;
+
+  const result = await prisma.refreshToken.updateMany({
+    where,
+    data: { isRevoked: true },
+  });
+
+  // Optional: log if token wasn't found or already revoked
+  if (result.count === 0 && userId) {
+    console.warn(
+      `Logout attempt with invalid refresh token for user ${userId}`,
+    );
+  }
+};

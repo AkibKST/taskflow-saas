@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { sendResponse } from "../../utils/sendResponse";
-import { registerService, loginService } from "./auth.service";
+import { registerService, loginService, logoutService } from "./auth.service";
 import jwt from "jsonwebtoken";
 import httpStatus from "http-status-codes";
 import { catchAsync } from "../../utils/catchAsync";
@@ -54,6 +54,7 @@ export const login = catchAsync(async (req, res) => {
   });
 });
 
+//Refresh token
 export const refresh = catchAsync(async (req, res) => {
   // Get token from cookies
   const token = req.cookies?.refreshToken;
@@ -100,17 +101,15 @@ export const refresh = catchAsync(async (req, res) => {
   });
 });
 
-export const logout = catchAsync(async (req, res) => {
-  const token = req.cookies?.refreshToken;
+// Logout
+export const logout = catchAsync(async (req: Request, res: Response) => {
+  const refreshToken = req.cookies?.refreshToken;
 
-  if (token)
-    await prisma.refreshToken.updateMany({
-      where: { token },
-      data: { isRevoked: true },
-    });
+  // Pass the authenticated user's ID to the service to ensure the token belongs to them
+  await logoutService(refreshToken, req.user?.userId);
 
-  // Clear cookie
-  res.clearCookie("refreshToken");
+  // Clear the refresh token cookie using the same options
+  res.clearCookie("refreshToken", COOKIE_OPTIONS);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
