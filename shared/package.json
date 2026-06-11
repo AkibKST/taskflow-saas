@@ -1,0 +1,8 @@
+{
+  "name": "@taskflow/shared",
+  "version": "1.0.0",
+  "description": "Shared constants, enums and socket event names — single source of truth for server and client",
+  "main": "index.ts",
+  "types": "index.ts",
+  "license": "ISC"
+}

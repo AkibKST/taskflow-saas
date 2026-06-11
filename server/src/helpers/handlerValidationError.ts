@@ -1,16 +1,13 @@
-import mongoose from "mongoose";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   TErrorSources,
   TGenericErrorResponse,
-} from "../interfaces/error.types";
+} from "../types/error.types";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export const handlerValidationError = (
-  err: mongoose.Error.ValidationError
-): TGenericErrorResponse => {
+export const handlerValidationError = (err: any): TGenericErrorResponse => {
   const errorSources: TErrorSources[] = [];
 
-  const errors = Object.values(err.errors);
+  const errors = Object.values(err.errors ?? {});
 
   errors.forEach((errorObject: any) =>
     errorSources.push({

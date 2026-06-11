@@ -1,11 +1,11 @@
-import { TGenericErrorResponse } from "../interfaces/error.types";
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export const handlerDuplicateError = (err: any): TGenericErrorResponse => {
-  const matchedArray = err.message.match(/"([^"]*)"/);
+import { TGenericErrorResponse } from "../types/error.types";
 
+export const handlerDuplicateError = (err: any): TGenericErrorResponse => {
+  const target = err.meta?.target;
+  const field = Array.isArray(target) ? target.join(", ") : target;
   return {
-    statusCode: 400,
-    message: `${matchedArray[1]} already exists!!`,
+    statusCode: 409,
+    message: field ? `${field} already exists!!` : "Duplicate value!!",
   };
 };

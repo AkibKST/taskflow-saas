@@ -2,16 +2,13 @@
 import {
   TErrorSources,
   TGenericErrorResponse,
-} from "../interfaces/error.types";
+} from "../types/error.types";
 
 export const handlerZodError = (err: any): TGenericErrorResponse => {
   const errorSources: TErrorSources[] = [];
 
   err.issues.forEach((issue: any) => {
     errorSources.push({
-      //path : "nickname iside lastname inside name"
-      // path: issue.path.length > 1 && issue.path.reverse().join(" inside "),
-
       path: issue.path[issue.path.length - 1],
       message: issue.message,
     });
