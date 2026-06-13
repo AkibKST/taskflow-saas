@@ -30,6 +30,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    console.log("Login form submitted:", form, "Remember:", remember);
     try {
       const res = await api.post<{ user: User; accessToken: string }>(
         "/auth/login",

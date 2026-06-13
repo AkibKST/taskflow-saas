@@ -19,6 +19,8 @@ export const initSocket = (httpServer: http.Server): Server => {
     transports: ["websocket", "polling"],
   });
 
+  console.log("🔌 Socket.IO initialized");
+
   // JWT handshake auth
   io.use((socket: Socket, next) => {
     const token =
@@ -42,6 +44,8 @@ export const initSocket = (httpServer: http.Server): Server => {
 
   io.on("connection", (socket: Socket) => {
     const userId = (socket as any).userId as string;
+
+    console.log(`⚡ Socket connected → ${socket.id} (user: ${userId})`);
 
     // Each user gets a private room for direct notifications
     socket.join(`user:${userId}`);
@@ -70,6 +74,7 @@ export const initSocket = (httpServer: http.Server): Server => {
     });
 
     socket.on("disconnect", () => {
+      console.log(`🔌 Socket disconnected → ${socket.id} (user: ${userId})`);
       presence.forEach((users, projectId) => {
         if (users.delete(userId)) {
           io!.to(`project:${projectId}`).emit(SOCKET_EVENTS.PRESENCE_UPDATE, {
