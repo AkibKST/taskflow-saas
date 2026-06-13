@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
-import type { TaskStatus, Priority } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
+import type { TaskStatus, Priority } from "../../generated/prisma/client";
 import { SOCKET_EVENTS, NOTIFICATION_TYPES } from "@taskflow/shared";
 import { emitToProject } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
@@ -113,22 +114,24 @@ export const updateTaskService = async (
   data: UpdateTaskInput
 ) => {
   const existing = await assertTaskInProject(taskId, projectId, tenantId);
-  const { assigneeIds, ...rest } = data;
+  const { assigneeIds, status, priority, ...rest } = data;
+
+  const updateData: Prisma.TaskUncheckedUpdateInput = {
+    ...rest,
+    // ensure enums have correct types for Prisma
+    ...(status !== undefined && { status: status as unknown as TaskStatus }),
+    ...(priority !== undefined && { priority: priority as unknown as Priority }),
+    ...(assigneeIds !== undefined && {
+      assignees: {
+        deleteMany: {},
+        create: assigneeIds.map((userId) => ({ userId })),
+      },
+    }),
+  };
 
   const updated = await prisma.task.update({
     where: { id: taskId },
-    data: {
-      ...rest,
-      // ensure enums have correct types for Prisma
-      ...(rest.status !== undefined && { status: rest.status as unknown as TaskStatus | undefined }),
-      ...(rest.priority !== undefined && { priority: rest.priority as unknown as Priority | undefined }),
-      ...(assigneeIds !== undefined && {
-        assignees: {
-          deleteMany: {},
-          create: assigneeIds.map((userId) => ({ userId })),
-        },
-      }),
-    },
+    data: updateData,
     include: {
       assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
       createdBy: { select: { id: true, name: true } },

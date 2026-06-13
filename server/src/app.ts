@@ -10,6 +10,7 @@ import httpStatus from "http-status-codes";
 import authRoutes from "./modules/auth/auth.route";
 import projectRoutes from "./modules/project/project.route";
 import notificationRoutes from "./modules/notification/notification.route";
+import userRoutes from "./modules/users/user.route";
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.get("/health", (_, res) => res.json({ status: "OK", time: new Date() }));
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/users", userRoutes);
 
 // 404 handler
 app.use((_, res) =>

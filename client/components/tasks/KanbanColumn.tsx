@@ -1,5 +1,5 @@
 "use client";
-import { useState, FC, FormEvent, ChangeEvent } from "react";
+import { useState, FC, SyntheticEvent, ChangeEvent } from "react";
 import { TaskCard } from "./TaskCard";
 import { Task } from "@/store/taskStore";
 
@@ -23,7 +23,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
   const [quickTitle, setQuickTitle] = useState<string>("");
   const [adding, setAdding] = useState<boolean>(false);
 
-  const handleAdd = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleAdd = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!quickTitle.trim()) return;
     await onCreateTask({ title: quickTitle.trim(), status });

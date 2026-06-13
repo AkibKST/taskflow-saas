@@ -1,11 +1,14 @@
 "use client";
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useState, SyntheticEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { parseApiError } from "@/lib/apiError";
 import { useAuthStore, User } from "@/store/authStore";
+import { pageBg, inputPill, inputPillError, fieldErrorText, iconBadge, cx } from "@/lib/ui";
 
 interface RegisterForm {
+  orgName: string;
   name: string;
   email: string;
   password: string;
@@ -16,19 +19,28 @@ export default function RegisterPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
 
   // --- state variables ---
-  const [form, setForm] = useState<RegisterForm>({ name: "", email: "", password: "" });
+  const [form, setForm] = useState<RegisterForm>({ orgName: "", name: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(false);
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    // Clear a field's error as soon as the user edits it.
+    setFieldErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     setLoading(true);
     try {
       const res = await api.post<{ user: User; accessToken: string }>(
@@ -36,16 +48,18 @@ export default function RegisterPage() {
         form
       );
       if (res) setAuth(res.data.user, res.data.accessToken);
-      router.push("/projects");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+      router.push("/dashboard");
+    } catch (err) {
+      const parsed = parseApiError(err);
+      setError(parsed.message);
+      setFieldErrors(parsed.fieldErrors);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 p-4">
+    <div className={`flex min-h-screen items-center justify-center ${pageBg} p-4`}>
       <div className="grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-3xl bg-white shadow-2xl md:min-h-[580px] md:grid-cols-2">
         {/* ---------- Welcome panel (left) ---------- */}
         <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden bg-gradient-to-br from-brand-600 via-brand-600 to-brand-700 p-8 md:min-h-0 md:p-12">
@@ -87,72 +101,116 @@ export default function RegisterPage() {
             <p className="mt-1 text-sm text-gray-400">Sign up to get started</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-4">
             {error && (
-              <p className="rounded-full bg-red-50 px-4 py-2 text-center text-sm text-red-600">
-                {error}
-              </p>
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="flex items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span className="leading-snug">{error}</span>
+              </div>
             )}
 
+            {/* Organization name */}
+            <div>
+              <div className={cx(fieldErrors.orgName ? inputPillError : inputPill)}>
+                <span className={iconBadge}>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 21h18" />
+                    <path d="M5 21V7l7-4 7 4v14" />
+                    <path d="M9 9h0M9 13h0M9 17h0M15 9h0M15 13h0M15 17h0" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  name="orgName"
+                  placeholder="Organization name"
+                  autoComplete="organization"
+                  required
+                  value={form.orgName}
+                  onChange={handleInputChange}
+                  aria-invalid={!!fieldErrors.orgName}
+                  className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+                />
+              </div>
+              {fieldErrors.orgName && <p className={fieldErrorText}>{fieldErrors.orgName}</p>}
+            </div>
+
             {/* Name */}
-            <div className="flex items-center gap-3 rounded-full bg-gray-100 px-4 py-3 focus-within:ring-2 focus-within:ring-brand-500/40">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="8" r="4" />
-                  <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                name="name"
-                placeholder="Full name"
-                autoComplete="name"
-                required
-                value={form.name}
-                onChange={handleInputChange}
-                className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-              />
+            <div>
+              <div className={cx(fieldErrors.name ? inputPillError : inputPill)}>
+                <span className={iconBadge}>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Full name"
+                  autoComplete="name"
+                  required
+                  value={form.name}
+                  onChange={handleInputChange}
+                  aria-invalid={!!fieldErrors.name}
+                  className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+                />
+              </div>
+              {fieldErrors.name && <p className={fieldErrorText}>{fieldErrors.name}</p>}
             </div>
 
             {/* Email */}
-            <div className="flex items-center gap-3 rounded-full bg-gray-100 px-4 py-3 focus-within:ring-2 focus-within:ring-brand-500/40">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="3" y="5" width="18" height="14" rx="2" />
-                  <path d="m3 7 9 6 9-6" />
-                </svg>
-              </span>
-              <input
-                type="email"
-                name="email"
-                placeholder="E-mail"
-                autoComplete="email"
-                required
-                value={form.email}
-                onChange={handleInputChange}
-                className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-              />
+            <div>
+              <div className={cx(fieldErrors.email ? inputPillError : inputPill)}>
+                <span className={iconBadge}>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="m3 7 9 6 9-6" />
+                  </svg>
+                </span>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="E-mail"
+                  autoComplete="email"
+                  required
+                  value={form.email}
+                  onChange={handleInputChange}
+                  aria-invalid={!!fieldErrors.email}
+                  className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+                />
+              </div>
+              {fieldErrors.email && <p className={fieldErrorText}>{fieldErrors.email}</p>}
             </div>
 
             {/* Password */}
-            <div className="flex items-center gap-3 rounded-full bg-gray-100 px-4 py-3 focus-within:ring-2 focus-within:ring-brand-500/40">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="4" y="11" width="16" height="9" rx="2" />
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                </svg>
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                placeholder="Password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={form.password}
-                onChange={handleInputChange}
-                className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-              />
+            <div>
+              <div className={cx(fieldErrors.password ? inputPillError : inputPill)}>
+                <span className={iconBadge}>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="4" y="11" width="16" height="9" rx="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </svg>
+                </span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="Password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  value={form.password}
+                  onChange={handleInputChange}
+                  aria-invalid={!!fieldErrors.password}
+                  className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+                />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
@@ -173,9 +231,15 @@ export default function RegisterPage() {
                   </svg>
                 )}
               </button>
+              </div>
+              {fieldErrors.password ? (
+                <p className={fieldErrorText}>{fieldErrors.password}</p>
+              ) : (
+                <p className="px-4 pt-1 text-xs text-gray-400">
+                  Min. 8 characters, with 1 uppercase letter and 1 number.
+                </p>
+              )}
             </div>
-
-            <p className="px-2 text-xs text-gray-400">Min. 8 characters</p>
 
             {/* Submit */}
             <button

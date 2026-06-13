@@ -1,6 +1,6 @@
 "use client";
-import { useState, FC, MouseEvent } from "react";
-import { PRIORITY, PRIORITY_ORDER } from "@taskflow/shared";
+import { useState, FC } from "react";
+import { PRIORITY, PRIORITY_ORDER, Priority } from "@taskflow/shared";
 import { Task } from "@/store/taskStore";
 
 const priorityColors: Record<string, string> = {
@@ -21,7 +21,7 @@ export const TaskCard: FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
   const [title, setTitle] = useState(task.title);
 
   const cyclePriority = (): void => {
-    const idx = PRIORITY_ORDER.indexOf(task.priority);
+    const idx = PRIORITY_ORDER.indexOf(task.priority as Priority);
     const next = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
     onUpdate(task.id, { priority: next });
   };

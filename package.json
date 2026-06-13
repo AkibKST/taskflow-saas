@@ -1,7 +1,11 @@
 {
   "name": "taskflow-saas",
   "private": true,
-  "workspaces": ["shared", "server", "client"],
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "npm run dev:server & npm run dev:client",
     "dev:server": "npm run dev --workspace server",
@@ -9,5 +13,11 @@
     "build": "npm run build --workspace server && npm run build --workspace client",
     "db:generate": "cd server && npx prisma generate",
     "db:migrate": "cd server && npx prisma migrate dev"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }

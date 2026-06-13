@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, FormEvent, ChangeEvent } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, SyntheticEvent, ChangeEvent } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { BOARD_COLUMNS, TASK_STATUS, PRIORITY } from "@taskflow/shared";
 import { api } from "@/lib/api";
@@ -22,7 +22,6 @@ interface TasksByStatus {
 
 export default function TasksPage() {
   const { projectId } = useParams();
-  const router = useRouter();
   const { currentProject, setCurrentProject, onlineUserIds } = useProjectStore();
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -41,12 +40,12 @@ export default function TasksPage() {
     });
   }, [projectId, setCurrentProject]);
 
-  const tasksByStatus: TasksByStatus = (BOARD_COLUMNS as string[]).reduce((acc, col) => {
+  const tasksByStatus: TasksByStatus = [...BOARD_COLUMNS].reduce((acc, col) => {
     acc[col] = tasks.filter((t) => t.status === col);
     return acc;
   }, {} as TasksByStatus);
 
-  const handleCreateModal = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleCreateModal = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     await createTask(createForm);
     setShowCreateModal(false);
@@ -105,6 +104,16 @@ export default function TasksPage() {
           >
             + New task
           </button>
+          <Link
+            href={`/projects/${projectId}/settings`}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label="Project settings"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+            </svg>
+          </Link>
         </div>
       </header>
 
@@ -130,7 +139,7 @@ export default function TasksPage() {
       <main className="p-6">
         {view === "kanban" ? (
           <div className="flex gap-4 overflow-x-auto pb-4">
-            {(BOARD_COLUMNS as string[]).map((col) => (
+            {[...BOARD_COLUMNS].map((col) => (
               <KanbanColumn
                 key={col}
                 status={col}

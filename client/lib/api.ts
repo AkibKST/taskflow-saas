@@ -1,73 +1,43 @@
-import { useAuthStore } from "@/store/authStore";
+import axiosInstance from "@/lib/axios";
+import { AxiosError } from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
-
-interface RequestOptions extends RequestInit {
-  headers?: Record<string, string>;
-}
-
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   data: T;
   message?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
-const request = async <T = any>(
-  path: string,
-  options: RequestOptions = {},
-  retry: boolean = true
-): Promise<ApiResponse<T> | null> => {
-  const { accessToken } = useAuthStore.getState();
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  if (res.status === 401 && retry) {
-    const refreshed = await refresh();
-    if (refreshed) return request<T>(path, options, false);
-    useAuthStore.getState().clearAuth();
-    if (typeof window !== "undefined") window.location.href = "/login";
-    return null;
+// Normalize axios errors into a plain Error carrying status + payload,
+// matching what callers previously relied on.
+const toApiError = (
+  err: unknown,
+): Error & { status?: number; data?: unknown } => {
+  if (err instanceof AxiosError) {
+    const data = err.response?.data as ApiResponse | undefined;
+    return Object.assign(
+      new Error(data?.message || err.message || "Request failed"),
+      { status: err.response?.status, data },
+    );
   }
-
-  const json: ApiResponse<T> = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const error = Object.assign(new Error(json.message || "Request failed"), {
-      status: res.status,
-      data: json,
-    }) as Error & { status: number; data: ApiResponse<T> };
-    throw error;
-  }
-  return json;
+  return err as Error;
 };
 
-const refresh = async (): Promise<boolean> => {
+const unwrap = async <T>(promise: Promise<{ data: ApiResponse<T> }>) => {
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!res.ok) return false;
-    const json: ApiResponse = await res.json();
-    useAuthStore.getState().setAccessToken(json.data?.accessToken);
-    return true;
-  } catch {
-    return false;
+    const res = await promise;
+    return res.data;
+  } catch (err) {
+    throw toApiError(err);
   }
 };
 
 export const api = {
-  get: <T = any>(path: string) => request<T>(path),
-  post: <T = any>(path: string, body: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
-  patch: <T = any>(path: string, body: unknown) =>
-    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
-  delete: <T = any>(path: string) => request<T>(path, { method: "DELETE" }),
+  get: <T = unknown>(path: string) =>
+    unwrap<T>(axiosInstance.get<ApiResponse<T>>(path)),
+  post: <T = unknown>(path: string, body?: unknown) =>
+    unwrap<T>(axiosInstance.post<ApiResponse<T>>(path, body)),
+  patch: <T = unknown>(path: string, body?: unknown) =>
+    unwrap<T>(axiosInstance.patch<ApiResponse<T>>(path, body)),
+  delete: <T = unknown>(path: string) =>
+    unwrap<T>(axiosInstance.delete<ApiResponse<T>>(path)),
 };

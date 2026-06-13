@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useState, FormEvent, ChangeEvent } from "react";
+import { useEffect, useState, SyntheticEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { useProjectStore, Project } from "@/store/projectStore";
+import { pageBg, projectStatusBadge, cx } from "@/lib/ui";
+import { Badge } from "@/components/ui";
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -28,7 +30,7 @@ export default function ProjectsPage() {
     router.push("/login");
   };
 
-  const handleCreate = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleCreate = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!newName.trim()) return;
     setError("");
@@ -55,9 +57,11 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={cx("min-h-screen", pageBg)}>
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">TaskFlow</h1>
+        <Link href="/dashboard" className="text-xl font-bold text-gray-900 hover:text-brand-600">
+          TaskFlow
+        </Link>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">{user?.name}</span>
           <button
@@ -137,9 +141,14 @@ export default function ProjectsPage() {
                     style={{ backgroundColor: (project as any).color ?? "#6366f1" }}
                   />
                   <div>
-                    <h3 className="font-semibold text-gray-900 group-hover:text-brand-600 transition-colors">
-                      {project.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-brand-600 transition-colors">
+                        {project.name}
+                      </h3>
+                      <Badge className={projectStatusBadge[project.status] ?? projectStatusBadge.ACTIVE}>
+                        {project.status?.replace("_", " ")}
+                      </Badge>
+                    </div>
                     {project.description && (
                       <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
                         {project.description}

@@ -39,6 +39,7 @@ export const createProjectService = async (
   return prisma.project.create({
     data: {
       ...data,
+      status: data.status as any,
       tenantId,
       members: {
         create: { userId: creatorId, role: "MANAGER" },
@@ -59,7 +60,7 @@ export const updateProjectService = async (
 
   const updated = await prisma.project.update({
     where: { id: projectId },
-    data,
+    data: { ...data, status: data.status as any },
   });
 
   emitToProject(projectId, SOCKET_EVENTS.PROJECT_UPDATED, updated);

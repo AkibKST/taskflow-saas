@@ -24,7 +24,7 @@ export const listNotifications = catchAsync(
 );
 
 export const markRead = catchAsync(async (req: Request, res: Response) => {
-  await markReadService(req.params.notificationId, req.user.userId);
+  await markReadService(String(req.params.notificationId), req.user.userId);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

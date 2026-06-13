@@ -23,7 +23,7 @@ export const listProjects = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const getProject = catchAsync(async (req: Request, res: Response) => {
-  const project = await getProjectService(req.params.projectId, req.user.tenantId);
+  const project = await getProjectService(String(req.params.projectId), req.user.tenantId);
   sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Project fetched", data: project });
 });
 
@@ -35,22 +35,22 @@ export const createProject = catchAsync(async (req: Request, res: Response) => {
 
 export const updateProject = catchAsync(async (req: Request, res: Response) => {
   const data = updateProjectSchema.parse(req.body);
-  const project = await updateProjectService(req.params.projectId, req.user.tenantId, data);
+  const project = await updateProjectService(String(req.params.projectId), req.user.tenantId, data);
   sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Project updated", data: project });
 });
 
 export const deleteProject = catchAsync(async (req: Request, res: Response) => {
-  await deleteProjectService(req.params.projectId, req.user.tenantId);
+  await deleteProjectService(String(req.params.projectId), req.user.tenantId);
   sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Project deleted", data: null });
 });
 
 export const addMember = catchAsync(async (req: Request, res: Response) => {
   const data = addMemberSchema.parse(req.body);
-  const member = await addMemberService(req.params.projectId, req.user.tenantId, data);
+  const member = await addMemberService(String(req.params.projectId), req.user.tenantId, data);
   sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Member added", data: member });
 });
 
 export const removeMember = catchAsync(async (req: Request, res: Response) => {
-  await removeMemberService(req.params.projectId, req.user.tenantId, req.params.userId);
+  await removeMemberService(String(req.params.projectId), req.user.tenantId, String(req.params.userId));
   sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Member removed", data: null });
 });
