@@ -151,6 +151,19 @@ export default function ProjectSettingsPage() {
     }
   };
 
+  const handleChangeRole = async (userId: string, role: string) => {
+    const snapshot = members;
+    setMembers((m) => m.map((x) => (x.userId === userId ? { ...x, role } : x)));
+    try {
+      // POST upserts the membership — reusing it to change an existing role.
+      await api.post(`/projects/${projectId}/members`, { userId, role });
+      showToast("Role updated", "success");
+    } catch (err) {
+      setMembers(snapshot);
+      showToast(parseApiError(err).message, "error");
+    }
+  };
+
   const handleRemoveMember = async (userId: string) => {
     const snapshot = members;
     setMembers((m) => m.filter((x) => x.userId !== userId));
@@ -285,7 +298,22 @@ export default function ProjectSettingsPage() {
                         <p className="truncate text-sm font-medium text-gray-800">{m.user.name}</p>
                         <p className="truncate text-xs text-gray-400">{m.user.email}</p>
                       </div>
-                      <Badge className={roleBadge[m.role] ?? roleBadge.MEMBER}>{m.role}</Badge>
+                      {canManage ? (
+                        <select
+                          value={m.role}
+                          onChange={(e) => handleChangeRole(m.userId, e.target.value)}
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 outline-none focus:border-brand-400"
+                          aria-label={`Role for ${m.user.name}`}
+                        >
+                          {PROJECT_ROLES.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Badge className={roleBadge[m.role] ?? roleBadge.MEMBER}>{m.role}</Badge>
+                      )}
                       {canManage && (
                         <button
                           onClick={() => handleRemoveMember(m.userId)}

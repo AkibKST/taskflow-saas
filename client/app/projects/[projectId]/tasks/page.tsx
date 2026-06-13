@@ -9,11 +9,18 @@ import { useSocket } from "@/hooks/useSocket";
 import { useTasks } from "@/hooks/useTasks";
 import { Task } from "@/store/taskStore";
 import { KanbanColumn } from "@/components/tasks/KanbanColumn";
+import { AssigneePicker, PickerMember } from "@/components/tasks/AssigneePicker";
 
 interface CreateForm {
   title: string;
   status: string;
   priority: string;
+  assigneeIds: string[];
+}
+
+interface ProjectWithMembers {
+  id: string;
+  members?: { userId: string; user: { id: string; name: string; email: string } }[];
 }
 
 interface TasksByStatus {
@@ -25,10 +32,12 @@ export default function TasksPage() {
   const { currentProject, setCurrentProject, onlineUserIds } = useProjectStore();
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [members, setMembers] = useState<PickerMember[]>([]);
   const [createForm, setCreateForm] = useState<CreateForm>({
     title: "",
     status: TASK_STATUS.TODO,
     priority: PRIORITY.MEDIUM,
+    assigneeIds: [],
   });
 
   useSocket(projectId as string);
@@ -38,10 +47,24 @@ export default function TasksPage() {
     api.get<Project>(`/projects/${projectId}`).then((res) => {
       if (res) setCurrentProject(res.data);
     });
+    // Project members populate the assignee picker. getProject omits members,
+    // so source them from the list endpoint (which includes them).
+    api.get<ProjectWithMembers[]>("/projects").then((res) => {
+      const found = res.data.find((p) => p.id === projectId);
+      setMembers(
+        (found?.members ?? []).map((m) => ({
+          userId: m.userId,
+          name: m.user.name,
+          email: m.user.email,
+        })),
+      );
+    });
   }, [projectId, setCurrentProject]);
 
   const tasksByStatus: TasksByStatus = [...BOARD_COLUMNS].reduce((acc, col) => {
-    acc[col] = tasks.filter((t) => t.status === col);
+    acc[col] = tasks
+      .filter((t) => t.status === col)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return acc;
   }, {} as TasksByStatus);
 
@@ -49,7 +72,7 @@ export default function TasksPage() {
     e.preventDefault();
     await createTask(createForm);
     setShowCreateModal(false);
-    setCreateForm({ title: "", status: TASK_STATUS.TODO, priority: PRIORITY.MEDIUM });
+    setCreateForm({ title: "", status: TASK_STATUS.TODO, priority: PRIORITY.MEDIUM, assigneeIds: [] });
   };
 
   const handleViewToggle = (): void => {
@@ -68,6 +91,42 @@ export default function TasksPage() {
 
   const handleDeleteTask = (taskId: string): void => {
     deleteTask(taskId);
+  };
+
+  // Drag & drop: move a task into `destStatus` at position `destIndex`,
+  // then renumber that column and persist only the tasks that actually changed.
+  const handleMoveTask = (taskId: string, destStatus: string, destIndex: number): void => {
+    const moved = tasks.find((t) => t.id === taskId);
+    if (!moved) return;
+
+    // Destination column as currently rendered (sorted by order).
+    const full = tasks
+      .filter((t) => t.status === destStatus)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const without = full.filter((t) => t.id !== taskId);
+
+    // Resolve the drop position via the target card's id so the moved card's
+    // own index doesn't throw off same-column reordering.
+    let insertAt: number;
+    if (destIndex >= full.length) {
+      insertAt = without.length;
+    } else {
+      const targetId = full[destIndex].id;
+      if (targetId === taskId) return; // dropped on itself
+      const i = without.findIndex((t) => t.id === targetId);
+      insertAt = i < 0 ? without.length : i;
+    }
+
+    const next = [...without];
+    next.splice(insertAt, 0, moved);
+
+    next.forEach((t, idx) => {
+      const statusChanged = t.id === taskId && moved.status !== destStatus;
+      const orderChanged = (t.order ?? 0) !== idx;
+      if (statusChanged || orderChanged) {
+        updateTask(t.id, statusChanged ? { status: destStatus, order: idx } : { order: idx });
+      }
+    });
   };
 
   const stats = {
@@ -144,6 +203,8 @@ export default function TasksPage() {
                 key={col}
                 status={col}
                 tasks={tasksByStatus[col] ?? []}
+                members={members}
+                onMoveTask={handleMoveTask}
                 onCreateTask={createTask}
                 onUpdate={updateTask}
                 onDelete={deleteTask}
@@ -230,6 +291,16 @@ export default function TasksPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Assignees
+                </label>
+                <AssigneePicker
+                  members={members}
+                  selected={createForm.assigneeIds}
+                  onChange={(ids) => setCreateForm({ ...createForm, assigneeIds: ids })}
+                />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button

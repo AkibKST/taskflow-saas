@@ -2,6 +2,7 @@
 import { useState, FC } from "react";
 import { PRIORITY, PRIORITY_ORDER, Priority } from "@taskflow/shared";
 import { Task } from "@/store/taskStore";
+import { AssigneePicker, PickerMember } from "./AssigneePicker";
 
 const priorityColors: Record<string, string> = {
   [PRIORITY.LOW]: "bg-gray-100 text-gray-600",
@@ -12,13 +13,20 @@ const priorityColors: Record<string, string> = {
 
 interface TaskCardProps {
   task: Task;
+  members: PickerMember[];
   onUpdate: (taskId: string, patch: Partial<Task>) => void;
   onDelete: (taskId: string) => void;
+  onEditingChange?: (editing: boolean) => void;
 }
 
-export const TaskCard: FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
+export const TaskCard: FC<TaskCardProps> = ({ task, members, onUpdate, onDelete, onEditingChange }) => {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
+
+  const setEditingState = (value: boolean): void => {
+    setEditing(value);
+    onEditingChange?.(value);
+  };
 
   const cyclePriority = (): void => {
     const idx = PRIORITY_ORDER.indexOf(task.priority as Priority);
@@ -27,7 +35,7 @@ export const TaskCard: FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
   };
 
   const handleTitleBlur = (): void => {
-    setEditing(false);
+    setEditingState(false);
     if (title.trim() && title !== task.title) {
       onUpdate(task.id, { title: title.trim() });
     } else {
@@ -36,7 +44,7 @@ export const TaskCard: FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
   };
 
   const handleDoubleClick = (): void => {
-    setEditing(true);
+    setEditingState(true);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -97,24 +105,14 @@ export const TaskCard: FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
         </button>
       </div>
 
-      {task.assignees?.length! > 0 && (
-        <div className="flex gap-1 mt-2">
-          {task.assignees!.slice(0, 3).map((a) => (
-            <span
-              key={a.id}
-              title={a.name}
-              className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs flex items-center justify-center"
-            >
-              {a.name?.[0]?.toUpperCase()}
-            </span>
-          ))}
-          {task.assignees!.length > 3 && (
-            <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 text-xs flex items-center justify-center">
-              +{task.assignees!.length - 3}
-            </span>
-          )}
-        </div>
-      )}
+      <div className="mt-2">
+        <AssigneePicker
+          compact
+          members={members}
+          selected={(task.assignees ?? []).map((a) => a.id)}
+          onChange={(ids) => onUpdate(task.id, { assigneeIds: ids } as Partial<Task>)}
+        />
+      </div>
     </div>
   );
 };

@@ -84,10 +84,12 @@ export const addMemberService = async (
   data: AddMemberInput
 ) => {
   await assertProjectInTenant(projectId, tenantId);
+  // upsert doubles as "add" and "change role" for an existing member.
   return prisma.projectMember.upsert({
     where: { projectId_userId: { projectId, userId: data.userId } },
     create: { projectId, userId: data.userId, role: (data.role as any) ?? "MEMBER" },
     update: { role: (data.role as any) ?? "MEMBER" },
+    include: { user: { select: { id: true, name: true, email: true } } },
   });
 };
 

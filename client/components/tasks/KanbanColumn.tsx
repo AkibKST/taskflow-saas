@@ -1,27 +1,74 @@
 "use client";
 import { useState, FC, SyntheticEvent, ChangeEvent } from "react";
 import { TaskCard } from "./TaskCard";
+import { PickerMember } from "./AssigneePicker";
 import { Task } from "@/store/taskStore";
 
 const WIP_LIMIT = 10;
 
+const DRAG_KEY = "text/taskId";
+
 interface KanbanColumnProps {
   status: string;
   tasks: Task[];
+  members: PickerMember[];
   onCreateTask: (data: Partial<Task>) => Promise<void>;
   onUpdate: (taskId: string, patch: Partial<Task>) => void;
   onDelete: (taskId: string) => void;
+  onMoveTask: (taskId: string, destStatus: string, destIndex: number) => void;
 }
 
 export const KanbanColumn: FC<KanbanColumnProps> = ({
   status,
   tasks,
+  members,
   onCreateTask,
   onUpdate,
   onDelete,
+  onMoveTask,
 }) => {
   const [quickTitle, setQuickTitle] = useState<string>("");
   const [adding, setAdding] = useState<boolean>(false);
+  const [dragOver, setDragOver] = useState<boolean>(false);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const clearDrag = (): void => {
+    setDragOver(false);
+    setDropIndex(null);
+  };
+
+  const handleCardDragStart = (e: React.DragEvent, taskId: string): void => {
+    e.dataTransfer.setData(DRAG_KEY, taskId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  // Drop on a specific card → insert before it.
+  const handleCardDrop = (e: React.DragEvent, index: number): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearDrag();
+    const taskId = e.dataTransfer.getData(DRAG_KEY);
+    if (taskId) onMoveTask(taskId, status, index);
+  };
+
+  // Drop on the column (not a card) → append to the end.
+  const handleColumnDrop = (e: React.DragEvent): void => {
+    e.preventDefault();
+    clearDrag();
+    const taskId = e.dataTransfer.getData(DRAG_KEY);
+    if (taskId) onMoveTask(taskId, status, tasks.length);
+  };
+
+  const allowDrop = (e: React.DragEvent): void => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  // Thin insertion line showing where the card will land.
+  const placeholder = (
+    <div className="h-0.5 rounded-full bg-brand-500" />
+  );
 
   const handleAdd = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -64,15 +111,46 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
         </span>
       </div>
 
-      <div className="flex flex-col gap-2 min-h-[120px] bg-gray-100 rounded-xl p-2">
-        {tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onUpdate={onUpdate}
-            onDelete={onDelete}
-          />
+      <div
+        onDragOver={(e) => {
+          allowDrop(e);
+          setDragOver(true);
+          setDropIndex(tasks.length);
+        }}
+        onDragLeave={(e) => {
+          // Only clear when the pointer actually leaves the column.
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDrag();
+        }}
+        onDrop={handleColumnDrop}
+        className={`flex flex-col gap-2 min-h-[120px] rounded-xl p-2 transition-colors ${
+          dragOver ? "bg-brand-100 ring-2 ring-brand-300" : "bg-gray-100"
+        }`}
+      >
+        {tasks.map((task, index) => (
+          <div key={task.id} className="flex flex-col gap-2">
+            {dropIndex === index && placeholder}
+            <div
+              draggable={editingId !== task.id}
+              onDragStart={(e) => handleCardDragStart(e, task.id)}
+              onDragOver={(e) => {
+                allowDrop(e);
+                e.stopPropagation();
+                setDropIndex(index);
+              }}
+              onDrop={(e) => handleCardDrop(e, index)}
+              className={editingId === task.id ? "" : "cursor-grab active:cursor-grabbing"}
+            >
+              <TaskCard
+                task={task}
+                members={members}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onEditingChange={(editing) => setEditingId(editing ? task.id : null)}
+              />
+            </div>
+          </div>
         ))}
+        {dropIndex === tasks.length && placeholder}
 
         {adding ? (
           <form onSubmit={handleAdd} className="bg-white rounded-lg p-2 shadow-sm">
