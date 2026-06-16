@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { api } from "@/lib/api";
 import AppHeader from "@/components/layout/AppHeader";
 import { Card, Badge, EmptyState, SectionHeader } from "@/components/ui";
 import { cx, pageBg, roleBadge } from "@/lib/ui";
 import { useAuthStore } from "@/store/authStore";
+import { ROLES } from "@taskflow/shared";
 
 interface TenantUser {
   id: string;
@@ -13,11 +14,20 @@ interface TenantUser {
   role: string;
 }
 
+const ROLE_VALUES = [ROLES.MEMBER, ROLES.MANAGER, ROLES.ADMIN];
+
 export default function TeamPage() {
   const { user } = useAuthStore();
   const [members, setMembers] = useState<TenantUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Invite form state
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<string>(ROLES.MEMBER);
+  const [inviting, setInviting] = useState(false);
+  const [inviteMsg, setInviteMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -40,8 +50,24 @@ export default function TeamPage() {
     (a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role),
   );
 
-  const role = (user?.role ?? "MEMBER").toUpperCase();
-  const isAdmin = role === "OWNER" || role === "ADMIN";
+  const currentRole = (user?.role ?? "MEMBER").toUpperCase();
+  const canInvite = currentRole === "OWNER" || currentRole === "ADMIN";
+
+  const handleInvite = async (e: FormEvent) => {
+    e.preventDefault();
+    setInviting(true);
+    setInviteMsg(null);
+    try {
+      await api.post("/invite", { email: inviteEmail, role: inviteRole });
+      setInviteMsg({ type: "ok", text: `Invite sent to ${inviteEmail}` });
+      setInviteEmail("");
+      setInviteRole(ROLES.MEMBER);
+    } catch (err: any) {
+      setInviteMsg({ type: "err", text: err.message || "Failed to send invite" });
+    } finally {
+      setInviting(false);
+    }
+  };
 
   return (
     <div className={cx("min-h-screen", pageBg)}>
@@ -55,19 +81,62 @@ export default function TeamPage() {
               {members.length} member{members.length !== 1 ? "s" : ""} in your workspace
             </p>
           </div>
-          {isAdmin && (
-            <a
-              href="/admin/users"
+          {canInvite && (
+            <button
+              onClick={() => { setShowInvite((v) => !v); setInviteMsg(null); }}
               className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
             >
-              Manage users
-            </a>
+              {showInvite ? "Cancel" : "+ Invite member"}
+            </button>
           )}
         </div>
 
+        {/* Invite form */}
+        {showInvite && canInvite && (
+          <Card className="mb-6">
+            <SectionHeader title="Invite a new member" />
+            <form onSubmit={handleInvite} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="colleague@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/30"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Role</label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+                >
+                  {ROLE_VALUES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={inviting}
+                className="rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              >
+                {inviting ? "Sending…" : "Send invite"}
+              </button>
+            </form>
+            {inviteMsg && (
+              <p className={`mt-3 text-sm ${inviteMsg.type === "ok" ? "text-green-600" : "text-red-500"}`}>
+                {inviteMsg.text}
+              </p>
+            )}
+          </Card>
+        )}
+
         <Card>
           <SectionHeader title="Members" />
-
           <div className="mb-4">
             <input
               type="search"

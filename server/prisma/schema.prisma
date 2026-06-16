@@ -1,5 +1,4 @@
 
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -9,176 +8,221 @@ datasource db {
   provider = "postgresql"
 }
 
-
 model Tenant {
-  id String @id @default(uuid())
-  name String
-  slug String @unique
-  isActive Boolean @default(true)
-  users User[]
-  projects Project[]
-  tasks Task[]
+  id           String        @id @default(uuid())
+  name         String
+  slug         String        @unique
+  isActive     Boolean       @default(true)
+  users        User[]
+  projects     Project[]
+  tasks        Task[]
   notifications Notification[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  inviteTokens InviteToken[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
 
 model User {
-  id String @id @default(uuid())
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name String
-  email String
-  passwordHash String
-  role Role @default(MEMBER)
-  isActive Boolean @default(true)
-  refreshTokens RefreshToken[]
+  id             String          @id @default(uuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name           String
+  email          String
+  passwordHash   String
+  role           Role            @default(MEMBER)
+  isActive       Boolean         @default(true)
+  refreshTokens  RefreshToken[]
   projectMembers ProjectMember[]
-  createdTasks Task[] @relation("TaskCreator")
-  assignedTasks TaskAssignee[]
-  comments Comment[]
-  notifications Notification[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdTasks   Task[]          @relation("TaskCreator")
+  assignedTasks  TaskAssignee[]
+  comments       Comment[]
+  notifications  Notification[]
+  sentInvites    InviteToken[]   @relation("SentInvites")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
   @@unique([tenantId, email])
+  @@index([tenantId])
 }
 
 model RefreshToken {
-  id String @id @default(uuid())
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token String @unique
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
   expiresAt DateTime
-  isRevoked Boolean @default(false)
+  isRevoked Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model InviteToken {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email       String
+  role        Role     @default(MEMBER)
+  invitedById String
+  invitedBy   User     @relation("SentInvites", fields: [invitedById], references: [id])
+  token       String   @unique
+  isAccepted  Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([email])
 }
 
 model Project {
-  id String @id @default(uuid())
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name String
+  id          String          @id @default(uuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
   description String?
-  color String? @default("#00ff41")
-  status ProjectStatus @default(ACTIVE)
-  startDate DateTime?
-  endDate DateTime?
-  isDeleted Boolean @default(false)
-  members ProjectMember[]
-  tasks Task[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  color       String?         @default("#00ff41")
+  status      ProjectStatus   @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  isDeleted   Boolean         @default(false)
+  members     ProjectMember[]
+  tasks       Task[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([tenantId, isDeleted])
 }
 
 model ProjectMember {
-  id String @id @default(uuid())
+  id        String      @id @default(uuid())
   projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role ProjectRole @default(MEMBER)
-  joinedAt DateTime @default(now())
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+
   @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
 }
 
 model Task {
-  id String @id @default(uuid())
-  projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  createdById String
-  createdBy User @relation("TaskCreator", fields: [createdById], references: [id])
+  id           String         @id @default(uuid())
+  projectId    String
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  createdById  String
+  createdBy    User           @relation("TaskCreator", fields: [createdById], references: [id])
   parentTaskId String?
-  parentTask Task? @relation("SubTasks", fields: [parentTaskId], references: [id])
-  subTasks Task[] @relation("SubTasks")
-  title String
-  description String?
-  status TaskStatus @default(TODO)
-  priority Priority @default(MEDIUM)
-  dueDate DateTime?
-  order Int @default(0)
-  isDeleted Boolean @default(false)
-  assignees TaskAssignee[]
-  comments Comment[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  parentTask   Task?          @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks     Task[]         @relation("SubTasks")
+  title        String
+  description  String?
+  status       TaskStatus     @default(TODO)
+  priority     Priority       @default(MEDIUM)
+  dueDate      DateTime?
+  order        Int            @default(0)
+  isDeleted    Boolean        @default(false)
+  assignees    TaskAssignee[]
+  comments     Comment[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([projectId, tenantId, status])
+  @@index([projectId, order])
+  @@index([tenantId, isDeleted])
+  @@index([createdById])
 }
 
 model TaskAssignee {
-  id String @id @default(uuid())
-  taskId String
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedAt DateTime @default(now())
+
   @@unique([taskId, userId])
+  @@index([userId])
 }
 
 model Comment {
-  id String @id @default(uuid())
-  taskId String
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId String
-  user User @relation(fields: [userId], references: [id])
-  parentId String?
-  content String
-  isEdited Boolean @default(false)
-  isDeleted Boolean @default(false)
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  parentId  String?
+  content   String
+  isEdited  Boolean  @default(false)
+  isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([taskId, isDeleted])
+  @@index([userId])
 }
 
 model Notification {
-  id String @id @default(uuid())
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  type NotificationType
-  message String
-  linkUrl String?
-  isRead Boolean @default(false)
-  createdAt DateTime @default(now())
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  type      NotificationType
+  message   String
+  linkUrl   String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@index([tenantId])
 }
 
 // ── ENUMS ──
 enum Role {
-   OWNER
-    ADMIN
-     MANAGER
-      MEMBER
-       VIEWER 
-       }
-enum ProjectRole {
-   MANAGER
-    MEMBER 
-    VIEWER 
-    }
-enum ProjectStatus {
-   ACTIVE 
-   ON_HOLD
-    COMPLETED
-     ARCHIVED
-      }
-enum TaskStatus {
-   TODO 
-   IN_PROGRESS
-    IN_REVIEW
-     DONE 
-     BLOCKED
-      }
-enum Priority { 
-  LOW
-   MEDIUM 
-   HIGH 
-   URGENT
-    }
-enum NotificationType {
-   TASK_ASSIGNED
-    TASK_COMMENTED
-     DUE_SOON
-      MENTIONED
-       MEMBER_JOINED 
-       }
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+  VIEWER
+}
 
+enum ProjectRole {
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMMENTED
+  DUE_SOON
+  MENTIONED
+  MEMBER_JOINED
+}

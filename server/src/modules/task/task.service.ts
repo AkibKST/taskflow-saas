@@ -5,7 +5,12 @@ import type { TaskStatus, Priority } from "../../generated/prisma/client";
 import { SOCKET_EVENTS, NOTIFICATION_TYPES } from "@taskflow/shared";
 import { emitToProject } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
-import { CreateTaskInput, UpdateTaskInput, ListTasksQuery } from "./task.model";
+import {
+  CreateTaskInput,
+  UpdateTaskInput,
+  ListTasksQuery,
+  ReorderTasksInput,
+} from "./task.model";
 
 const assertTaskInProject = async (
   taskId: string,
@@ -37,16 +42,18 @@ export const listTasksService = async (
   const { status, priority, assigneeId, page, limit } = query;
   const skip = (page - 1) * limit;
 
-  const where: any = { projectId, tenantId, isDeleted: false };
-  if (status) where.status = status;
-  if (priority) where.priority = priority;
+  const where: Prisma.TaskWhereInput = { projectId, tenantId, isDeleted: false };
+  if (status) where.status = status as TaskStatus;
+  if (priority) where.priority = priority as Priority;
   if (assigneeId) where.assignees = { some: { userId: assigneeId } };
 
   const [tasks, total] = await Promise.all([
     prisma.task.findMany({
       where,
       include: {
-        assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+        assignees: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
         createdBy: { select: { id: true, name: true } },
         _count: { select: { subTasks: { where: { isDeleted: false } } } },
       },
@@ -71,9 +78,8 @@ export const createTaskService = async (
   const task = await prisma.task.create({
     data: {
       ...rest,
-      // ensure enums have correct types for Prisma
-      status: (rest.status as unknown as TaskStatus | undefined) ?? undefined,
-      priority: (rest.priority as unknown as Priority | undefined) ?? undefined,
+      status: (rest.status as TaskStatus | undefined) ?? undefined,
+      priority: (rest.priority as Priority | undefined) ?? undefined,
       projectId,
       tenantId,
       createdById,
@@ -82,7 +88,9 @@ export const createTaskService = async (
       },
     },
     include: {
-      assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+      assignees: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+      },
       createdBy: { select: { id: true, name: true } },
     },
   });
@@ -90,18 +98,20 @@ export const createTaskService = async (
   const dto = toTaskDTO(task);
   emitToProject(projectId, SOCKET_EVENTS.TASK_CREATED, dto);
 
-  // Notify each assignee
-  for (const userId of assigneeIds) {
-    if (userId !== createdById) {
-      await createNotificationService({
-        userId,
-        tenantId,
-        type: "TASK_ASSIGNED",
-        message: `You were assigned to "${task.title}"`,
-        linkUrl: `/projects/${projectId}/tasks/${task.id}`,
-      });
-    }
-  }
+  // Batch-notify assignees in parallel instead of serial awaits
+  await Promise.all(
+    assigneeIds
+      .filter((userId) => userId !== createdById)
+      .map((userId) =>
+        createNotificationService({
+          userId,
+          tenantId,
+          type: NOTIFICATION_TYPES.TASK_ASSIGNED,
+          message: `You were assigned to "${task.title}"`,
+          linkUrl: `/projects/${projectId}/tasks/${task.id}`,
+        })
+      )
+  );
 
   return dto;
 };
@@ -118,9 +128,8 @@ export const updateTaskService = async (
 
   const updateData: Prisma.TaskUncheckedUpdateInput = {
     ...rest,
-    // ensure enums have correct types for Prisma
-    ...(status !== undefined && { status: status as unknown as TaskStatus }),
-    ...(priority !== undefined && { priority: priority as unknown as Priority }),
+    ...(status !== undefined && { status: status as TaskStatus }),
+    ...(priority !== undefined && { priority: priority as Priority }),
     ...(assigneeIds !== undefined && {
       assignees: {
         deleteMany: {},
@@ -133,7 +142,9 @@ export const updateTaskService = async (
     where: { id: taskId },
     data: updateData,
     include: {
-      assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+      assignees: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+      },
       createdBy: { select: { id: true, name: true } },
     },
   });
@@ -141,24 +152,31 @@ export const updateTaskService = async (
   const dto = toTaskDTO(updated);
   emitToProject(projectId, SOCKET_EVENTS.TASK_UPDATED, dto);
 
-  // Notify newly added assignees
+  // Notify newly added assignees (batch, in parallel)
   if (assigneeIds) {
-    const previousAssignees = new Set(
-      (await prisma.taskAssignee.findMany({ where: { taskId: existing.id } })).map(
-        (a) => a.userId
-      )
+    const previousAssigneeIds = new Set(
+      existing
+        ? (
+            await prisma.taskAssignee.findMany({
+              where: { taskId: existing.id },
+              select: { userId: true },
+            })
+          ).map((a) => a.userId)
+        : []
     );
-    for (const userId of assigneeIds) {
-      if (!previousAssignees.has(userId) && userId !== actorId) {
-        await createNotificationService({
-          userId,
-          tenantId,
-          type: "TASK_ASSIGNED",
-          message: `You were assigned to "${updated.title}"`,
-          linkUrl: `/projects/${projectId}/tasks/${taskId}`,
-        });
-      }
-    }
+    await Promise.all(
+      assigneeIds
+        .filter((userId) => !previousAssigneeIds.has(userId) && userId !== actorId)
+        .map((userId) =>
+          createNotificationService({
+            userId,
+            tenantId,
+            type: NOTIFICATION_TYPES.TASK_ASSIGNED,
+            message: `You were assigned to "${updated.title}"`,
+            linkUrl: `/projects/${projectId}/tasks/${taskId}`,
+          })
+        )
+    );
   }
 
   return dto;
@@ -177,3 +195,69 @@ export const deleteTaskService = async (
   emitToProject(projectId, SOCKET_EVENTS.TASK_DELETED, { id: taskId });
   return deleted;
 };
+
+// Batch reorder: replace N parallel PATCH requests with one atomic write.
+// Only tasks that belong to the project+tenant are updated.
+export const reorderTasksService = async (
+  projectId: string,
+  tenantId: string,
+  input: ReorderTasksInput
+) => {
+  const { updates } = input;
+
+  // Verify all task ids belong to this project (security check)
+  const ids = updates.map((u) => u.id);
+  const existing = await prisma.task.findMany({
+    where: { id: { in: ids }, projectId, tenantId, isDeleted: false },
+    select: { id: true },
+  });
+  const validIds = new Set(existing.map((t) => t.id));
+  const invalid = ids.filter((id) => !validIds.has(id));
+  if (invalid.length > 0) {
+    throw new AppError(400, `Task(s) not found in this project: ${invalid.join(", ")}`);
+  }
+
+  // Execute all updates in a single transaction
+  await prisma.$transaction(
+    updates.map((u) =>
+      prisma.task.update({
+        where: { id: u.id },
+        data: {
+          order: u.order,
+          ...(u.status !== undefined && { status: u.status as TaskStatus }),
+        },
+      })
+    )
+  );
+
+  // Emit one consolidated batch event so clients can reconcile
+  emitToProject(projectId, SOCKET_EVENTS.TASK_UPDATED, {
+    _batchReorder: true,
+    updates: updates.map((u) => ({ id: u.id, order: u.order, status: u.status })),
+  });
+
+  return { updated: updates.length };
+};
+
+// ─── Function Summary ──────────────────────────────────────────────────────────
+// assertTaskInProject(taskId, projectId, tenantId)
+//   → guard: throws 404 if task not found in project+tenant scope
+//
+// toTaskDTO(task) → reshapes Prisma task into client-friendly DTO (flat assignees)
+//
+// listTasksService(projectId, tenantId, query)
+//   → paginated, filterable task list for a project
+//
+// createTaskService(projectId, tenantId, createdById, data)
+//   → creates task + assignees, emits TASK_CREATED, batch-notifies assignees
+//
+// updateTaskService(taskId, projectId, tenantId, actorId, data)
+//   → updates task fields + assignees, emits TASK_UPDATED, notifies new assignees
+//
+// deleteTaskService(taskId, projectId, tenantId)
+//   → soft-deletes task, emits TASK_DELETED
+//
+// reorderTasksService(projectId, tenantId, input)
+//   → batch-updates order/status for multiple tasks in one DB transaction,
+//     emits a single TASK_UPDATED batch event; replaces N parallel PATCH calls
+// ──────────────────────────────────────────────────────────────────────────────

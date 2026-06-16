@@ -1,15 +1,17 @@
 import { Request, Response } from "express";
 import { sendResponse } from "../../utils/sendResponse";
-import { registerService, loginService, logoutService } from "./auth.service";
-import jwt from "jsonwebtoken";
+import {
+  registerService,
+  loginService,
+  refreshService,
+  logoutService,
+} from "./auth.service";
 import httpStatus from "http-status-codes";
 import { catchAsync } from "../../utils/catchAsync";
 import { loginSchema, registerSchema } from "./auth.model";
 import AppError from "../../utils/AppError";
 import { prisma } from "../../config/prisma";
-import { AuthPayload } from "../../middleware/verifyToken";
 
-// Cookie options
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -54,61 +56,28 @@ export const login = catchAsync(async (req, res) => {
   });
 });
 
-//Refresh token
+// Refresh — rotates the refresh token and issues a new pair
 export const refresh = catchAsync(async (req, res) => {
-  // Get token from cookies
   const token = req.cookies?.refreshToken;
+  if (!token) throw new AppError(401, "Refresh token not found");
 
-  // If no token, return 401
-  if (!token) {
-    throw new AppError(401, "Refresh token not found");
-  }
+  const tokens = await refreshService(token);
 
-  // Check if token is valid and not revoked
-  const stored = await prisma.refreshToken.findUnique({
-    where: {
-      token,
-    },
-  });
-
-  if (!stored || stored.isRevoked || stored.expiresAt < new Date()) {
-    throw new AppError(401, "Invalid refresh token");
-  }
-
-  // Generate new access token
-  const payload = jwt.verify(
-    token,
-    process.env.JWT_REFRESH_SECRET!,
-  ) as AuthPayload;
-  const accessToken = jwt.sign(
-    {
-      userId: payload.userId,
-      tenantId: payload.tenantId,
-      role: payload.role,
-      email: payload.email,
-    },
-    process.env.JWT_SECRET!,
-    { expiresIn: process.env.JWT_EXPIRES_IN as any },
-  );
+  // Set the new rotated refresh token as a cookie
+  res.cookie("refreshToken", tokens.refreshToken, COOKIE_OPTIONS);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: "Token refreshed",
-    data: {
-      accessToken: accessToken,
-    },
+    data: { accessToken: tokens.accessToken },
   });
 });
 
 // Logout
 export const logout = catchAsync(async (req: Request, res: Response) => {
   const refreshToken = req.cookies?.refreshToken;
-
-  // Pass the authenticated user's ID to the service to ensure the token belongs to them
   await logoutService(refreshToken, req.user?.userId);
-
-  // Clear the refresh token cookie using the same options
   res.clearCookie("refreshToken", COOKIE_OPTIONS);
 
   sendResponse(res, {
@@ -119,6 +88,7 @@ export const logout = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// Get current user
 export const getMe = catchAsync(async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.userId },
@@ -131,9 +101,8 @@ export const getMe = catchAsync(async (req, res) => {
       tenant: { select: { id: true, name: true, slug: true } },
     },
   });
-  if (!user) {
-    throw new AppError(404, "User not found");
-  }
+  if (!user) throw new AppError(404, "User not found");
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -141,3 +110,11 @@ export const getMe = catchAsync(async (req, res) => {
     data: user,
   });
 });
+
+// ─── Function Summary ──────────────────────────────────────────────────────────
+// register  → POST /auth/register    creates tenant+owner, sets refresh cookie
+// login     → POST /auth/login       validates credentials, sets refresh cookie
+// refresh   → POST /auth/refresh     rotates refresh token pair via refreshService
+// logout    → POST /auth/logout      revokes token, clears cookie
+// getMe     → GET  /auth/me          returns current user profile
+// ──────────────────────────────────────────────────────────────────────────────

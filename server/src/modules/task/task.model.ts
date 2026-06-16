@@ -30,6 +30,28 @@ export const listTasksQuerySchema = z.object({
     .default(PAGINATION.DEFAULT_LIMIT),
 });
 
+// Batch reorder: an array of { id, status, order } patches
+export const reorderTasksSchema = z.object({
+  updates: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        status: z.enum(statusValues).optional(),
+        order: z.number().int(),
+      })
+    )
+    .min(1)
+    .max(200),
+});
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+export type ReorderTasksInput = z.infer<typeof reorderTasksSchema>;
+
+// ─── Function Summary ──────────────────────────────────────────────────────────
+// createTaskSchema   → validates full task creation payload
+// updateTaskSchema   → all createTaskSchema fields optional (for PATCH)
+// listTasksQuerySchema → validates query string filters + pagination
+// reorderTasksSchema → validates { updates: [{id, status?, order}][] } for batch reorder
+// ──────────────────────────────────────────────────────────────────────────────

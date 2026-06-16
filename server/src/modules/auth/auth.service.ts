@@ -4,34 +4,39 @@ import { LoginInput, RegisterInput } from "./auth.model";
 import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
 
-// Helper: generate tokens
-const generateTokens = (payload: {
+interface TokenPayload {
   userId: string;
   tenantId: string;
   role: string;
   email: string;
-}) => {
+}
+
+const generateTokens = (payload: TokenPayload) => {
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRES_IN as any,
+    expiresIn: (process.env.JWT_EXPIRES_IN ?? "15m") as jwt.SignOptions["expiresIn"],
   });
   const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN as any,
+    expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? "7d") as jwt.SignOptions["expiresIn"],
   });
-  return {
-    accessToken,
-    refreshToken,
-  };
+  return { accessToken, refreshToken };
 };
+
+const saveRefreshToken = (userId: string, token: string) =>
+  prisma.refreshToken.create({
+    data: {
+      userId,
+      token,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
 
 // Register — create tenant + admin user
 export const registerService = async (data: RegisterInput) => {
-  // Generate unique slug from org name
   const slug =
     data.orgName.toLowerCase().replace(/[^a-z0-9]/g, "-") +
     "-" +
     Date.now().toString(36);
 
-  // Check if email already exists (globally)
   const existingUser = await prisma.user.findFirst({
     where: { email: data.email },
   });
@@ -39,8 +44,7 @@ export const registerService = async (data: RegisterInput) => {
 
   const passwordHash = await bcrypt.hash(data.password, 12);
 
-  // Create tenant + user in transaction
-  const result = await prisma.$transaction(async (tx: any) => {
+  const result = await prisma.$transaction(async (tx) => {
     const tenant = await tx.tenant.create({
       data: { name: data.orgName, slug },
     });
@@ -64,20 +68,9 @@ export const registerService = async (data: RegisterInput) => {
     email: result.user.email,
   });
 
-  // Save refresh token to DB
-  await prisma.refreshToken.create({
-    data: {
-      userId: result.user.id,
-      token: tokens.refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
+  await saveRefreshToken(result.user.id, tokens.refreshToken);
 
-  return {
-    ...tokens,
-    user: result.user,
-    tenant: result.tenant,
-  };
+  return { ...tokens, user: result.user, tenant: result.tenant };
 };
 
 // Login
@@ -97,28 +90,62 @@ export const loginService = async (data: LoginInput) => {
     role: user.role,
     email: user.email,
   });
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      token: tokens.refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
+
+  await saveRefreshToken(user.id, tokens.refreshToken);
 
   const { passwordHash: _, ...safeUser } = user;
-  return {
-    ...tokens,
-    user: safeUser,
-  };
+  return { ...tokens, user: safeUser };
 };
 
+// Refresh — rotate the refresh token on every use; detect replay attacks
+export const refreshService = async (oldToken: string) => {
+  const stored = await prisma.refreshToken.findUnique({ where: { token: oldToken } });
+
+  if (!stored) throw new AppError(401, "Invalid refresh token");
+
+  if (stored.isRevoked) {
+    // Reuse of a revoked token: someone is replaying a stolen token.
+    // Revoke the entire token family for this user to force re-login.
+    await prisma.refreshToken.updateMany({
+      where: { userId: stored.userId, isRevoked: false },
+      data: { isRevoked: true },
+    });
+    throw new AppError(401, "Refresh token reuse detected — please log in again");
+  }
+
+  if (stored.expiresAt < new Date()) throw new AppError(401, "Refresh token expired");
+
+  const payload = jwt.verify(
+    oldToken,
+    process.env.JWT_REFRESH_SECRET!
+  ) as TokenPayload;
+
+  // Revoke old token
+  await prisma.refreshToken.update({
+    where: { id: stored.id },
+    data: { isRevoked: true },
+  });
+
+  // Issue new token pair
+  const newTokens = generateTokens({
+    userId: payload.userId,
+    tenantId: payload.tenantId,
+    role: payload.role,
+    email: payload.email,
+  });
+
+  await saveRefreshToken(payload.userId, newTokens.refreshToken);
+
+  return newTokens;
+};
+
+// Logout
 export const logoutService = async (
   refreshToken: string | undefined,
-  userId?: string,
+  userId?: string
 ) => {
-  if (!refreshToken) return; // No token, nothing to revoke
+  if (!refreshToken) return;
 
-  // Build where clause: always match the token, optionally also match the userId
   const where: { token: string; userId?: string } = { token: refreshToken };
   if (userId) where.userId = userId;
 
@@ -127,10 +154,17 @@ export const logoutService = async (
     data: { isRevoked: true },
   });
 
-  // Optional: log if token wasn't found or already revoked
   if (result.count === 0 && userId) {
-    console.warn(
-      `Logout attempt with invalid refresh token for user ${userId}`,
-    );
+    console.warn(`Logout attempt with invalid refresh token for user ${userId}`);
   }
 };
+
+// ─── Function Summary ──────────────────────────────────────────────────────────
+// generateTokens(payload)       → creates signed access + refresh JWT pair
+// saveRefreshToken(userId, tok) → persists refresh token to DB with 7-day TTL
+// registerService(data)         → creates Tenant + OWNER User in transaction, issues tokens
+// loginService(data)            → validates credentials, issues tokens
+// refreshService(oldToken)      → rotates refresh token (revoke old, issue new);
+//                                  detects replay attack and revokes full token family
+// logoutService(refreshToken, userId) → revokes the stored refresh token
+// ──────────────────────────────────────────────────────────────────────────────

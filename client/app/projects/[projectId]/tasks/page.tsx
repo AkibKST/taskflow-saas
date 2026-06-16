@@ -41,7 +41,7 @@ export default function TasksPage() {
   });
 
   useSocket(projectId as string);
-  const { tasks, total, createTask, updateTask, deleteTask } = useTasks(projectId as string);
+  const { tasks, total, isMutating, createTask, updateTask, deleteTask, reorderTasks } = useTasks(projectId as string);
 
   useEffect(() => {
     api.get<Project>(`/projects/${projectId}`).then((res) => {
@@ -94,25 +94,22 @@ export default function TasksPage() {
   };
 
   // Drag & drop: move a task into `destStatus` at position `destIndex`,
-  // then renumber that column and persist only the tasks that actually changed.
+  // renumber that column, then submit all changes as a single batch request.
   const handleMoveTask = (taskId: string, destStatus: string, destIndex: number): void => {
     const moved = tasks.find((t) => t.id === taskId);
     if (!moved) return;
 
-    // Destination column as currently rendered (sorted by order).
     const full = tasks
       .filter((t) => t.status === destStatus)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const without = full.filter((t) => t.id !== taskId);
 
-    // Resolve the drop position via the target card's id so the moved card's
-    // own index doesn't throw off same-column reordering.
     let insertAt: number;
     if (destIndex >= full.length) {
       insertAt = without.length;
     } else {
       const targetId = full[destIndex].id;
-      if (targetId === taskId) return; // dropped on itself
+      if (targetId === taskId) return;
       const i = without.findIndex((t) => t.id === targetId);
       insertAt = i < 0 ? without.length : i;
     }
@@ -120,13 +117,23 @@ export default function TasksPage() {
     const next = [...without];
     next.splice(insertAt, 0, moved);
 
+    // Collect only the tasks that actually changed (avoid unnecessary writes)
+    const changed: { id: string; status?: string; order: number }[] = [];
     next.forEach((t, idx) => {
       const statusChanged = t.id === taskId && moved.status !== destStatus;
       const orderChanged = (t.order ?? 0) !== idx;
       if (statusChanged || orderChanged) {
-        updateTask(t.id, statusChanged ? { status: destStatus, order: idx } : { order: idx });
+        changed.push({
+          id: t.id,
+          order: idx,
+          ...(statusChanged && { status: destStatus }),
+        });
       }
     });
+
+    if (changed.length > 0) {
+      reorderTasks(changed);
+    }
   };
 
   const stats = {
@@ -145,6 +152,9 @@ export default function TasksPage() {
         </Link>
         <h1 className="font-semibold text-gray-900">{currentProject?.name ?? "…"}</h1>
         <div className="ml-auto flex items-center gap-3">
+          {isMutating && (
+            <span className="text-xs text-gray-400 animate-pulse">Saving…</span>
+          )}
           {onlineUserIds.length > 0 && (
             <div className="flex items-center gap-1.5 text-xs text-green-600">
               <span className="w-2 h-2 rounded-full bg-green-500" />

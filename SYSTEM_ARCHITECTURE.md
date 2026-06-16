@@ -66,11 +66,16 @@ graph TB
 | Capability | Summary |
 | --- | --- |
 | Multi-tenancy | Each org is a `Tenant`; every record carries a `tenantId` and queries are scoped to the caller's tenant. |
+| **Team invitations** | OWNER/ADMIN invite new members via email link; accepting creates a new User account and immediately signs in. |
 | Projects & tasks | Projects group work; tasks live on a Kanban board (`TODO → IN_PROGRESS → IN_REVIEW → DONE`, plus `BLOCKED`), support sub-tasks, priority, due dates, and multiple assignees. |
-| Real-time collaboration | Socket.IO broadcasts task/project changes and live presence to everyone viewing a project. |
+| **Comments** | Members can post, edit, and delete comments on tasks with optional threading; assignees are notified. |
+| **Batch reorder** | Kanban drag-and-drop sends a single `PATCH /tasks/reorder` request instead of N parallel writes. |
+| Real-time collaboration | Socket.IO broadcasts task/project/comment changes and live presence to everyone viewing a project; optionally scaled with Redis adapter. |
 | Notifications | Per-user alerts for assignments, comments, mentions, due-soon, and member-joined events. |
-| RBAC | Org-level roles (`OWNER`→`VIEWER`) and project-level roles guard every write. |
-| Security | JWT access/refresh tokens, bcrypt password hashing, Helmet headers, CORS allow-listing, rate limiting. |
+| RBAC | Org-level roles (`OWNER`→`VIEWER`) AND project-membership guard (`requireProjectMember`) on every project/task route. |
+| Security | JWT access/refresh tokens with **rotation + reuse detection**, bcrypt cost 12, custom CSP via Helmet, CORS allow-listing, rate limiting on all auth routes. |
+| **Scheduled jobs** | Prune expired/revoked refresh tokens every 6h; hard-delete soft-deleted records after 30-day retention window. |
+| **CI** | GitHub Actions: typecheck + lint on push/PR for both server and client. |
 
 ---
 
@@ -142,7 +147,12 @@ modules/<feature>/
 └── <feature>.model.ts        # Zod input schemas (DTO validation)
 ```
 
-Modules present: `auth`, `project`, `task`, `notification`, `users`.
+Modules present: `auth`, `invite`, `project`, `task`, `comment`, `notification`, `users`.
+
+Additional server directories:
+- `middleware/requireProjectMember.ts` — project-membership guard (new)
+- `jobs/` — scheduled maintenance tasks (`pruneRefreshTokens`, `hardDeleteSoftDeleted`)
+- `utils/email.ts` — transactional email stub (swap for Resend/SES/Postmark)
 
 ---
 
@@ -276,15 +286,15 @@ helmet → cors → morgan → express.json(10mb) → cookieParser
 | Prefix | Module | Auth |
 | --- | --- | --- |
 | `/api/v1/auth` | auth | public (register/login/refresh), authed (logout/me) |
-| `/api/v1/projects` | project | `verifyToken` on the whole router |
-| `/api/v1/projects/:projectId/tasks` | task (nested via `mergeParams`) | inherits project auth |
+| `/api/v1/invite` | invite | OWNER/ADMIN to create; public to validate/accept |
+| `/api/v1/projects` | project | `verifyToken` + `requireProjectMember` on project-scoped routes |
+| `/api/v1/projects/:projectId/tasks` | task (nested via `mergeParams`) | inherits project-membership guard |
+| `/api/v1/projects/:projectId/tasks/:taskId/comments` | comment (nested) | inherits project-membership guard |
 | `/api/v1/notifications` | notification | authed |
 | `/api/v1/users` | users | authed |
-| `/`, `/health` | app.ts | public |
+| `/`, `/health`, `/health/ready` | app.ts | public |
 
-Task routes are **nested** under projects: the project router does
-`router.use("/:projectId/tasks", taskRoutes)` and the task router uses
-`Router({ mergeParams: true })` to read `:projectId` from its parent.
+Routes are **nested** three levels deep: project router → task router (`mergeParams`) → comment router (`mergeParams`). `requireProjectMember` is applied at the project router level, protecting all nested task and comment routes in one place.
 
 ### 6.5 Error handling
 
@@ -728,26 +738,45 @@ npm run dev
 
 ## 15. Scalability, limitations & roadmap
 
-### Current architectural limitations
+### What's been addressed
 
-| Area | Limitation | Impact |
+| Area | Status |
+| --- | --- |
+| **Team invitations** | ✅ Full invite → accept flow; email stub ready to swap for Resend/SES |
+| **Comments module** | ✅ REST + socket events (create/update/delete) |
+| **Refresh-token rotation** | ✅ Every `/auth/refresh` issues a new pair, revokes the old; reuse detection revokes entire family |
+| **Project-membership authorization** | ✅ `requireProjectMember` middleware on all project/task/comment routes |
+| **Database indexes** | ✅ Composite indexes on `Task`, `Notification`, `RefreshToken`, `InviteToken`, `ProjectMember`, `Comment` |
+| **Batch reorder** | ✅ Single `PATCH /tasks/reorder` replaces N parallel writes; one DB transaction |
+| **Optimistic UI conflict handling** | ✅ `mutationId` tagging, merge-on-update, `isMutating` flag, echo filtering |
+| **Graceful shutdown** | ✅ SIGTERM/SIGINT drain Socket.IO and disconnect Prisma before exit |
+| **Scheduled jobs** | ✅ `pruneRefreshTokens` (6h) + `hardDeleteSoftDeleted` (24h) |
+| **Structured logging** | ✅ JSON log stream in production mode via morgan |
+| **Readiness probe** | ✅ `GET /health/ready` verifies DB with `SELECT 1` |
+| **CI** | ✅ GitHub Actions: typecheck + lint for server and client |
+| **Redis socket adapter** | ✅ Optional: set `REDIS_URL`; falls back to in-memory gracefully |
+| **Notification batch** | ✅ Assignee notifications are now parallel (`Promise.all`) not serial |
+
+### Remaining limitations
+
+| Area | Limitation | Mitigation path |
 | --- | --- | --- |
-| **Socket presence** | Presence is an in-process `Map`, and broadcasts target local rooms only. | Horizontal scaling of the API breaks presence/live updates across instances. A **Socket.IO Redis adapter** (and shared presence store) is required to run more than one node. |
-| **Tenant isolation** | Enforced in application code via `tenantId` scoping, not by the database (no row-level security). | A missed scope in a new query could leak cross-tenant data; mitigate with a shared scoped-query helper and/or Postgres RLS. |
-| **Registration email check** | `register` rejects an email that exists in *any* tenant, while the DB only enforces uniqueness per `(tenantId, email)`. | The same person cannot own accounts in two orgs today; revisit if multi-org membership is desired. |
-| **Notifications** | Created synchronously inside request handlers (loop over assignees). | Fine at current scale; move to a queue/worker if fan-out grows or external channels (email/push) are added. |
-| **Refresh-token hygiene** | Tokens are revocable but there's no automatic pruning of expired rows or rotation-on-use. | Add a cleanup job and consider refresh-token rotation. |
-| **No automated tests** | No test suite is present in the repo. | Add unit tests for services and integration tests for the API/auth before scaling the team. |
+| **Tenant isolation** | Enforced in app code via `tenantId` scoping; no Postgres row-level security. | Add RLS keyed on `tenantId` as a defense-in-depth layer. |
+| **Registration email check** | `register` rejects an email that exists in *any* tenant, while the DB enforces uniqueness only per `(tenantId, email)`. | Align logic or accept multi-org per email (DB already supports it). |
+| **Real email** | Invite/reset emails are logged to console only. | Swap `server/src/utils/email.ts` body for a Resend/SES/Postmark call. |
+| **Billing** | `/pricing` + `/admin/billing` are stubs; no payment provider. | Implement Stripe plans + entitlement checks. |
+| **No test suite** | No `*.test.*` files or test runner configured. | Add unit tests for services and integration tests for auth/invite flows. |
+| **Search / attachments** | Not implemented. | Add full-text search (pg `tsvector`) and S3 attachment upload. |
 
-### Natural next steps
+### Remaining roadmap
 
-1. **Stateless, multi-instance backend** — Redis adapter for Socket.IO,
-   externalized presence, behind a load balancer.
-2. **Database-enforced isolation** — Postgres row-level security keyed on
-   `tenantId`.
-3. **Background jobs** — queue for notifications, due-soon scanning, and email.
-4. **Observability** — structured logging, metrics, tracing, error reporting.
-5. **CI/CD** — typecheck, lint, test, and migration gates on every PR.
+1. **Real email provider** — swap console stub in `utils/email.ts` for Resend/SES.
+2. **Billing/subscriptions** — Stripe integration with plan model + entitlement checks.
+3. **Test suite** — unit + integration tests; add to CI after `npm ci`.
+4. **Postgres row-level security** — database-enforced tenant isolation.
+5. **Observability** — Sentry/OpenTelemetry error tracking + metrics.
+6. **Search** — PostgreSQL full-text search on tasks/projects.
+7. **File attachments** — S3/R2 upload for task files.
 
 ---
 
