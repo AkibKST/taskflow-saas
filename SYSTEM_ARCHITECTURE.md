@@ -285,7 +285,7 @@ helmet → cors → morgan → express.json(10mb) → cookieParser
 
 | Prefix | Module | Auth |
 | --- | --- | --- |
-| `/api/v1/auth` | auth | public (register/login/refresh), authed (logout/me) |
+| `/api/v1/auth` | auth | public (register/login/refresh), authed (logout, me, update profile `PATCH /me`, change password `PATCH /me/password`) |
 | `/api/v1/invite` | invite | OWNER/ADMIN to create; public to validate/accept |
 | `/api/v1/projects` | project | `verifyToken` + `requireProjectMember` on project-scoped routes |
 | `/api/v1/projects/:projectId/tasks` | task (nested via `mergeParams`) | inherits project-membership guard |

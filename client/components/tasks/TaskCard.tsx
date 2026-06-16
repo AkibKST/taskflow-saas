@@ -1,5 +1,6 @@
 "use client";
 import { useState, FC } from "react";
+import Link from "next/link";
 import { PRIORITY, PRIORITY_ORDER, Priority } from "@taskflow/shared";
 import { Task } from "@/store/taskStore";
 import { AssigneePicker, PickerMember } from "./AssigneePicker";
@@ -13,13 +14,14 @@ const priorityColors: Record<string, string> = {
 
 interface TaskCardProps {
   task: Task;
+  projectId: string;
   members: PickerMember[];
   onUpdate: (taskId: string, patch: Partial<Task>) => void;
   onDelete: (taskId: string) => void;
   onEditingChange?: (editing: boolean) => void;
 }
 
-export const TaskCard: FC<TaskCardProps> = ({ task, members, onUpdate, onDelete, onEditingChange }) => {
+export const TaskCard: FC<TaskCardProps> = ({ task, projectId, members, onUpdate, onDelete, onEditingChange }) => {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
 
@@ -91,18 +93,33 @@ export const TaskCard: FC<TaskCardProps> = ({ task, members, onUpdate, onDelete,
           {task.priority}
         </button>
 
-        {task.dueDate && (
-          <span className="text-xs text-gray-400">
-            {new Date(task.dueDate).toLocaleDateString()}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {task.dueDate && (
+            <span className="text-xs text-gray-400">
+              {new Date(task.dueDate).toLocaleDateString()}
+            </span>
+          )}
 
-        <button
-          onClick={handleDeleteClick}
-          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-sm"
-        >
-          &times;
-        </button>
+          <Link
+            href={`/projects/${projectId}/tasks/${task.id}`}
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Open task details"
+            className="text-gray-300 hover:text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 17 17 7M9 7h8v8" />
+            </svg>
+          </Link>
+
+          <button
+            onClick={handleDeleteClick}
+            aria-label="Delete task"
+            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none"
+          >
+            &times;
+          </button>
+        </div>
       </div>
 
       <div className="mt-2">

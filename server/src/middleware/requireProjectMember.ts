@@ -13,7 +13,10 @@ export const requireProjectMember = async (
 ): Promise<void> => {
   try {
     const { userId, tenantId, role } = req.user!;
-    const projectId = req.params.projectId;
+    // Params come through merged routers as `string | string[]`; normalize.
+    const projectId = Array.isArray(req.params.projectId)
+      ? req.params.projectId[0]
+      : req.params.projectId;
 
     if (!projectId) return next(new AppError(400, "projectId param required"));
 

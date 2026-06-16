@@ -52,10 +52,26 @@ export default function Home() {
     <div className={cx("min-h-screen", pageBg)}>
       {/* ---------------- Nav ---------------- */}
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <IconBadge>{checkIcon}</IconBadge>
           <span className="text-lg font-bold text-gray-900">TaskFlow</span>
-        </div>
+        </Link>
+        <nav className="hidden items-center gap-1 md:flex">
+          {[
+            { href: "/features", label: "Features" },
+            { href: "/pricing", label: "Pricing" },
+            { href: "/about", label: "About" },
+            { href: "/contact", label: "Contact" },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-800"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
         <nav className="flex items-center gap-3">
           {isAuthed ? (
             <Link href="/dashboard" className={cx(btnPrimary, "!px-5 !py-2")}>

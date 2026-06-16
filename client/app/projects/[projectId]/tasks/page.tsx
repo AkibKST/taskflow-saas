@@ -10,6 +10,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { Task } from "@/store/taskStore";
 import { KanbanColumn } from "@/components/tasks/KanbanColumn";
 import { AssigneePicker, PickerMember } from "@/components/tasks/AssigneePicker";
+import AppHeader from "@/components/layout/AppHeader";
 
 interface CreateForm {
   title: string;
@@ -145,10 +146,15 @@ export default function TasksPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b px-6 py-3 flex items-center gap-4">
-        <Link href="/projects" className="text-gray-400 hover:text-gray-600 text-sm">
-          ← Projects
+      <AppHeader />
+
+      {/* Project toolbar */}
+      <div className="bg-white border-b px-6 py-3 flex items-center gap-4">
+        <Link
+          href={`/projects/${projectId}`}
+          className="text-gray-400 hover:text-gray-600 text-sm"
+        >
+          ← Overview
         </Link>
         <h1 className="font-semibold text-gray-900">{currentProject?.name ?? "…"}</h1>
         <div className="ml-auto flex items-center gap-3">
@@ -184,7 +190,7 @@ export default function TasksPage() {
             </svg>
           </Link>
         </div>
-      </header>
+      </div>
 
       {/* Stats bar */}
       <div className="bg-white border-b px-6 py-2 flex gap-6 text-xs text-gray-500">
@@ -213,6 +219,7 @@ export default function TasksPage() {
                 key={col}
                 status={col}
                 tasks={tasksByStatus[col] ?? []}
+                projectId={projectId as string}
                 members={members}
                 onMoveTask={handleMoveTask}
                 onCreateTask={createTask}

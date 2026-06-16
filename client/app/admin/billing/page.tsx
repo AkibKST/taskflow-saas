@@ -41,7 +41,10 @@ export default function BillingPage() {
       <AppHeader />
 
       <main className="mx-auto max-w-2xl px-6 py-8">
-        <h1 className="mb-6 text-2xl font-bold text-gray-900">Billing & subscription</h1>
+        <h1 className="mb-2 text-2xl font-bold text-gray-900">Billing & subscription</h1>
+        <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Demo data — billing isn&apos;t connected to a payment provider yet.
+        </div>
 
         <Card className="mb-6">
           <SectionHeader title="Current plan" />

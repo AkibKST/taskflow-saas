@@ -5,10 +5,17 @@ import {
   loginService,
   refreshService,
   logoutService,
+  updateProfileService,
+  changePasswordService,
 } from "./auth.service";
 import httpStatus from "http-status-codes";
 import { catchAsync } from "../../utils/catchAsync";
-import { loginSchema, registerSchema } from "./auth.model";
+import {
+  loginSchema,
+  registerSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+} from "./auth.model";
 import AppError from "../../utils/AppError";
 import { prisma } from "../../config/prisma";
 
@@ -108,6 +115,32 @@ export const getMe = catchAsync(async (req, res) => {
     success: true,
     message: "User fetched",
     data: user,
+  });
+});
+
+// Update current user's profile (name / email)
+export const updateMe = catchAsync(async (req, res) => {
+  const body = updateProfileSchema.parse(req.body);
+  const user = await updateProfileService(req.user!.userId, body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Profile updated",
+    data: user,
+  });
+});
+
+// Change current user's password
+export const changePassword = catchAsync(async (req, res) => {
+  const body = changePasswordSchema.parse(req.body);
+  await changePasswordService(req.user!.userId, body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Password changed",
+    data: null,
   });
 });
 

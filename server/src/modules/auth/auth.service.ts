@@ -1,8 +1,22 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { LoginInput, RegisterInput } from "./auth.model";
+import {
+  LoginInput,
+  RegisterInput,
+  UpdateProfileInput,
+  ChangePasswordInput,
+} from "./auth.model";
 import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
+
+const PROFILE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  tenantId: true,
+  tenant: { select: { id: true, name: true, slug: true } },
+} as const;
 
 interface TokenPayload {
   userId: string;
@@ -137,6 +151,45 @@ export const refreshService = async (oldToken: string) => {
   await saveRefreshToken(payload.userId, newTokens.refreshToken);
 
   return newTokens;
+};
+
+// Update own profile (name / email)
+export const updateProfileService = async (
+  userId: string,
+  data: UpdateProfileInput
+) => {
+  if (data.email) {
+    const existing = await prisma.user.findFirst({
+      where: { email: data.email, NOT: { id: userId } },
+    });
+    if (existing) throw new AppError(409, "Email already in use");
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.email !== undefined && { email: data.email }),
+    },
+    select: PROFILE_SELECT,
+  });
+
+  return user;
+};
+
+// Change own password (verifies the current password first)
+export const changePasswordService = async (
+  userId: string,
+  data: ChangePasswordInput
+) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(404, "User not found");
+
+  const isValid = await bcrypt.compare(data.currentPassword, user.passwordHash);
+  if (!isValid) throw new AppError(400, "Current password is incorrect");
+
+  const passwordHash = await bcrypt.hash(data.newPassword, 12);
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 };
 
 // Logout

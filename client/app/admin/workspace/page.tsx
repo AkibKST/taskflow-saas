@@ -73,6 +73,9 @@ export default function WorkspaceSettingsPage() {
             <button type="submit" disabled={saving} className={btnPrimary}>
               {saving ? "Saving…" : "Save changes"}
             </button>
+            <p className="text-xs text-gray-400">
+              Preview — workspace settings aren&apos;t persisted yet.
+            </p>
           </form>
         </Card>
 

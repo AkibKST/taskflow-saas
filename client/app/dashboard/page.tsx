@@ -1,22 +1,20 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
 import { Project } from "@/store/projectStore";
+import AppHeader from "@/components/layout/AppHeader";
 import {
   Badge,
   Card,
   EmptyState,
-  IconBadge,
   SectionHeader,
   StatCard,
 } from "@/components/ui";
 import {
-  btnGhost,
   cx,
   pageBg,
   priorityBadge,
@@ -82,8 +80,7 @@ const ROLE_GREETING: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user } = useAuthStore();
   const [projects, setProjects] = useState<Project[]>([]);
   const [summary, setSummary] = useState<DashboardSummary>({});
   const [unread, setUnread] = useState(0);
@@ -124,12 +121,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const handleLogout = async () => {
-    await api.post("/auth/logout").catch(() => {});
-    clearAuth();
-    router.push("/login");
-  };
-
   // Derive stats from whatever data we have (summary preferred, else projects).
   const stats = useMemo(() => {
     const totalProjects = summary.totalProjects ?? projects.length;
@@ -146,37 +137,7 @@ export default function DashboardPage() {
 
   return (
     <div className={cx("min-h-screen", pageBg)}>
-      {/* ----------------------------- header ----------------------------- */}
-      <header className="sticky top-0 z-10 border-b border-white/60 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <IconBadge>{I.check}</IconBadge>
-            <span className="text-lg font-bold text-gray-900">TaskFlow</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/notifications" className="relative text-gray-400 hover:text-gray-600" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
-              {I.bell}
-              {unread > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              )}
-            </Link>
-            <Link href="/profile" className="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-gray-100">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white">
-                {(user?.name ?? "U").charAt(0).toUpperCase()}
-              </span>
-              <div className="hidden pr-2 sm:block">
-                <p className="text-sm font-semibold leading-tight text-gray-800">{user?.name}</p>
-                <Badge className={roleBadge[role] ?? roleBadge.MEMBER}>{role}</Badge>
-              </div>
-            </Link>
-            <button onClick={handleLogout} className={cx(btnGhost, "!px-4 !py-2")}>
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="mx-auto max-w-6xl px-6 py-8">
         {/* ----------------------------- greeting ----------------------------- */}
@@ -335,7 +296,7 @@ export default function DashboardPage() {
                       title="Team"
                       action={
                         isAdmin ? (
-                          <Link href="/members" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+                          <Link href="/team" className="text-sm font-medium text-brand-600 hover:text-brand-700">
                             Manage
                           </Link>
                         ) : undefined

@@ -72,10 +72,13 @@ export default function NotificationPreferencesPage() {
               </li>
             ))}
           </ul>
-          <div className="mt-4">
+          <div className="mt-4 space-y-2">
             <button onClick={handleSave} disabled={saving} className={btnPrimary}>
               {saving ? "Saving…" : "Save preferences"}
             </button>
+            <p className="text-xs text-gray-400">
+              Preview — notification preferences aren&apos;t persisted yet.
+            </p>
           </div>
         </Card>
       </main>

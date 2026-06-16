@@ -34,9 +34,13 @@ export const initSocket = async (httpServer: http.Server): Promise<Server> => {
   // Attach Redis adapter when REDIS_URL is configured — enables horizontal scaling
   if (process.env.REDIS_URL) {
     try {
-      // Dynamic import so the server starts fine without the package installed
-      const { createAdapter } = await import("@socket.io/redis-adapter");
-      const { createClient } = await import("redis");
+      // Dynamic import so the server starts fine without the package installed.
+      // Indirect specifiers keep these as truly optional deps — TypeScript won't
+      // try to resolve them at build time when they aren't present.
+      const redisAdapterPkg: string = "@socket.io/redis-adapter";
+      const redisPkg: string = "redis";
+      const { createAdapter } = await import(redisAdapterPkg);
+      const { createClient } = await import(redisPkg);
       const pubClient = createClient({ url: process.env.REDIS_URL });
       const subClient = pubClient.duplicate();
       await Promise.all([pubClient.connect(), subClient.connect()]);

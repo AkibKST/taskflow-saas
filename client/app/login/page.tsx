@@ -1,5 +1,5 @@
 "use client";
-import { useState, SyntheticEvent, ChangeEvent } from "react";
+import { useState, useEffect, SyntheticEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -15,6 +15,13 @@ interface LoginForm {
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
+  const user = useAuthStore((s) => s.user);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
+
+  // Already signed in → skip the form.
+  useEffect(() => {
+    if (hasHydrated && user) router.replace("/dashboard");
+  }, [hasHydrated, user, router]);
 
   // --- state variables ---
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });

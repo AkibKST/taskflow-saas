@@ -126,7 +126,7 @@ All FK columns and the following composite indexes are declared in `schema.prism
 > See **[API_LIST.md](API_LIST.md)** for the full endpoint reference with request/response shapes.
 
 Base URL: `/api/v1`. Module route map:
-- `/auth` — register, login, refresh (with rotation), logout, me
+- `/auth` — register, login, refresh (with rotation), logout, me, update profile (`PATCH /me`), change password (`PATCH /me/password`)
 - `/invite` — create invite, validate token, accept invite
 - `/projects` — CRUD + member management (project-membership gated)
 - `/projects/:projectId/tasks` — CRUD + batch reorder
@@ -161,6 +161,8 @@ Base URL: `/api/v1`. Module route map:
 | `comment:deleted` | server → room | `{ taskId, commentId }` | Removed comment |
 | `notification:new` | server → user | notification | Alert for one user |
 
+> **Convention exception:** the three `comment:*` events are emitted from the code, but their names are defined locally in `modules/comment/comment.service.ts` (`COMMENT_EVENTS`) rather than in `shared/index.ts`'s `SOCKET_EVENTS`. To honour the single-source-of-truth rule (§12), move these into `SOCKET_EVENTS`.
+
 ### Optimistic UI + conflict handling
 `store/taskStore.ts` applies mutations immediately (optimistic), stores a `_snapshot` and `_mutationId` for rollback, then confirms/rolls-back on the server response. Socket echoes of own mutations are detected by comparing `_mutationId` in the pending set. `syncUpdated` merges rather than replaces when a local mutation is in flight. The `isMutating` flag is exposed to the UI to show a "Saving…" indicator and prevent conflicting interactions.
 
@@ -194,10 +196,15 @@ Next.js 14 App Router. Key additions:
 
 | Path | Description |
 | --- | --- |
+| `components/layout/AppHeader.tsx` | Shared authenticated-app header — primary nav (Dashboard, Projects, My Tasks, Team), role-gated Admin links, notification bell with live unread badge, and a profile/settings dropdown (also exposes nav on mobile). Doubles as the **client-side auth gate**: redirects to `/login` once auth state has rehydrated with no user |
+| `store/authStore.ts` | Persisted `user` + in-memory access token; `hasHydrated` flag so the auth gate doesn't false-redirect on first paint |
+| `app/settings/page.tsx` | Account settings — update name/email + change password (wired to `PATCH /auth/me` and `/auth/me/password`) |
 | `app/team/page.tsx` | Team members list + **Invite member** form (OWNER/ADMIN only) |
 | `app/invite/[token]/page.tsx` | Accept-invite page — validates token, collects name+password, creates account |
 | `store/taskStore.ts` | Optimistic task state with `mutationId` tracking, `isMutating`, merge-on-update |
 | `hooks/useTasks.ts` | Task data/state + `reorderTasks` (batch) + own-echo filtering |
+
+> See **[FRONTEND_PAGES.md](FRONTEND_PAGES.md)** for the full page inventory and status.
 
 ---
 

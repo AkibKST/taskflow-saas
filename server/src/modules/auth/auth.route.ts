@@ -1,6 +1,14 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { register, login, refresh, logout, getMe } from "./auth.controller";
+import {
+  register,
+  login,
+  refresh,
+  logout,
+  getMe,
+  updateMe,
+  changePassword,
+} from "./auth.controller";
 import { verifyToken } from "../../middleware/verifyToken";
 
 const router = Router();
@@ -16,6 +24,8 @@ router.post("/login", authLimiter, login);
 router.post("/refresh", authLimiter, refresh); // rate-limited — protects token endpoint
 router.post("/logout", verifyToken, logout);
 router.get("/me", verifyToken, getMe);
+router.patch("/me", verifyToken, updateMe);
+router.patch("/me/password", verifyToken, changePassword);
 
 export default router;
 
@@ -26,4 +36,6 @@ export default router;
 // POST /refresh  → rate-limited; rotate refresh token pair
 // POST /logout   → authenticated; revoke token
 // GET  /me       → authenticated; return current user
+// PATCH /me      → authenticated; update own name / email
+// PATCH /me/password → authenticated; change own password
 // ──────────────────────────────────────────────────────────────────────────────

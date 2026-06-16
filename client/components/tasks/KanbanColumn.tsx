@@ -11,6 +11,7 @@ const DRAG_KEY = "text/taskId";
 interface KanbanColumnProps {
   status: string;
   tasks: Task[];
+  projectId: string;
   members: PickerMember[];
   onCreateTask: (data: Partial<Task>) => Promise<void>;
   onUpdate: (taskId: string, patch: Partial<Task>) => void;
@@ -21,6 +22,7 @@ interface KanbanColumnProps {
 export const KanbanColumn: FC<KanbanColumnProps> = ({
   status,
   tasks,
+  projectId,
   members,
   onCreateTask,
   onUpdate,
@@ -142,6 +144,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
             >
               <TaskCard
                 task={task}
+                projectId={projectId}
                 members={members}
                 onUpdate={onUpdate}
                 onDelete={onDelete}

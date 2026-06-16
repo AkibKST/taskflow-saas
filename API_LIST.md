@@ -33,6 +33,8 @@ Roles legend — `canManage` = OWNER/ADMIN/MANAGER · `canWrite` = OWNER/ADMIN/M
 | POST | `/refresh` | 🔓 (5/min) | **Rotate** refresh token pair; sets new refresh cookie |
 | POST | `/logout` | ✅ | Revoke refresh token |
 | GET | `/me` | ✅ | Current authenticated user |
+| PATCH | `/me` | ✅ | Update own profile (name / email) |
+| PATCH | `/me/password` | ✅ | Change own password (verifies current password) |
 
 **POST `/register`**
 ```json
@@ -52,6 +54,18 @@ Roles legend — `canManage` = OWNER/ADMIN/MANAGER · `canWrite` = OWNER/ADMIN/M
 **POST `/refresh`** — no body; uses `refreshToken` httpOnly cookie.
 Returns `{ accessToken }` and sets a **new rotated** `refreshToken` cookie.
 Replayed revoked tokens trigger full token-family revocation (reuse detection).
+
+**PATCH `/me`** — partial; at least one field required. Returns the updated user.
+```json
+{ "name": "Jane D.", "email": "jane.d@acme.com" }
+```
+Changing `email` is rejected with `409` if it already belongs to another user.
+
+**PATCH `/me/password`**
+```json
+{ "currentPassword": "Secret123", "newPassword": "NewSecret1" }
+```
+`newPassword` must be ≥ 8 chars with 1 uppercase + 1 number. Returns `400` if `currentPassword` is incorrect.
 
 ---
 

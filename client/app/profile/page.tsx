@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import AppHeader from "@/components/layout/AppHeader";
 import { Badge, Card, IconBadge, SectionHeader } from "@/components/ui";
-import { btnGhost, cx, pageBg, roleBadge, sectionLabel } from "@/lib/ui";
+import { btnGhost, btnPrimary, cx, pageBg, roleBadge, sectionLabel } from "@/lib/ui";
 
 /* ----------------------------- types ----------------------------- */
 interface Profile {
@@ -91,8 +91,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 }
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user } = useAuthStore();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -111,29 +110,12 @@ export default function ProfilePage() {
     };
   }, [user]);
 
-  const handleLogout = async () => {
-    await api.post("/auth/logout").catch(() => {});
-    clearAuth();
-    router.push("/login");
-  };
-
   const role = (profile?.role ?? user?.role ?? "MEMBER").toUpperCase();
   const info = ROLE_INFO[role] ?? ROLE_INFO.MEMBER;
 
   return (
     <div className={cx("min-h-screen", pageBg)}>
-      {/* ----------------------------- header ----------------------------- */}
-      <header className="sticky top-0 z-10 border-b border-white/60 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <IconBadge>{I.shield}</IconBadge>
-            <span className="text-lg font-bold text-gray-900">TaskFlow</span>
-          </Link>
-          <button onClick={handleLogout} className={cx(btnGhost, "!px-4 !py-2")}>
-            Logout
-          </button>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         {loading ? (
@@ -220,6 +202,9 @@ export default function ProfilePage() {
 
             {/* --------------------------- quick links --------------------------- */}
             <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/settings" className={cx(btnPrimary, "!px-5")}>
+                Edit profile
+              </Link>
               <Link href="/dashboard" className={cx(btnGhost, "!px-5")}>
                 Back to dashboard
               </Link>
