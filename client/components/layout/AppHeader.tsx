@@ -29,6 +29,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/projects", label: "Projects" },
   { href: "/my-tasks", label: "My Tasks" },
+  { href: "/calendar", label: "Calendar" },
   { href: "/team", label: "Team" },
 ];
 

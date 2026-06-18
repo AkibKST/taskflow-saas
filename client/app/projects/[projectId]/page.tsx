@@ -55,7 +55,7 @@ export default function ProjectOverviewPage() {
     let active = true;
     Promise.allSettled([
       api.get<Project[]>("/projects"),
-      api.get<Task[]>(`/projects/${projectId}/tasks`),
+      api.get<{ tasks: Task[]; total: number }>(`/projects/${projectId}/tasks`),
     ]).then(([projRes, tasksRes]) => {
       if (!active) return;
       if (projRes.status === "fulfilled") {
@@ -63,7 +63,7 @@ export default function ProjectOverviewPage() {
         setProject(found);
       }
       if (tasksRes.status === "fulfilled") {
-        setTasks(tasksRes.value.data as unknown as Task[]);
+        setTasks(tasksRes.value.data.tasks ?? []);
       }
       setLoading(false);
     });
