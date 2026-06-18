@@ -1,36 +1,61 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import { showToast } from "@/store/toastStore";
 import AppHeader from "@/components/layout/AppHeader";
 import { Card, SectionHeader } from "@/components/ui";
 import { btnPrimary, cx, pageBg } from "@/lib/ui";
 
 interface Pref {
+  // `key` matches the NotificationPreference column / API field exactly.
   key: string;
   label: string;
   description: string;
 }
 
 const PREFS: Pref[] = [
-  { key: "task_assigned", label: "Task assigned to me", description: "When a task is assigned to you." },
-  { key: "task_due", label: "Task due soon", description: "24 hours before a due date." },
-  { key: "comment_mention", label: "Mentions", description: "When someone @mentions you in a comment." },
-  { key: "member_joined", label: "Member joined", description: "When a new member joins your workspace." },
-  { key: "project_update", label: "Project updates", description: "When a project you're on is updated." },
+  { key: "taskAssigned", label: "Task assigned to me", description: "When a task is assigned to you." },
+  { key: "taskDue", label: "Task due soon", description: "24 hours before a due date." },
+  { key: "commentMention", label: "Mentions", description: "When someone @mentions you in a comment." },
+  { key: "memberJoined", label: "Member joined", description: "When a new member joins your workspace." },
+  { key: "projectUpdate", label: "Project updates", description: "When a project you're on is updated." },
 ];
 
 export default function NotificationPreferencesPage() {
   const [prefs, setPrefs] = useState<Record<string, boolean>>(
     Object.fromEntries(PREFS.map((p) => [p.key, true])),
   );
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api
+      .get<Record<string, boolean>>("/settings/notifications")
+      .then((res) =>
+        setPrefs((prev) => {
+          const next = { ...prev };
+          for (const p of PREFS) {
+            if (typeof res.data[p.key] === "boolean") next[p.key] = res.data[p.key];
+          }
+          return next;
+        }),
+      )
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 400));
-    setSaving(false);
-    showToast("Preferences saved", "success");
+    try {
+      const body = Object.fromEntries(PREFS.map((p) => [p.key, prefs[p.key]]));
+      await api.patch("/settings/notifications", body);
+      showToast("Preferences saved", "success");
+    } catch (err) {
+      showToast((err as Error)?.message || "Couldn't save preferences", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -56,9 +81,10 @@ export default function NotificationPreferencesPage() {
                 <button
                   role="switch"
                   aria-checked={prefs[p.key]}
+                  disabled={loading}
                   onClick={() => setPrefs((prev) => ({ ...prev, [p.key]: !prev[p.key] }))}
                   className={cx(
-                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-50",
                     prefs[p.key] ? "bg-brand-600" : "bg-gray-200",
                   )}
                 >
@@ -72,13 +98,10 @@ export default function NotificationPreferencesPage() {
               </li>
             ))}
           </ul>
-          <div className="mt-4 space-y-2">
-            <button onClick={handleSave} disabled={saving} className={btnPrimary}>
+          <div className="mt-4">
+            <button onClick={handleSave} disabled={saving || loading} className={btnPrimary}>
               {saving ? "Saving…" : "Save preferences"}
             </button>
-            <p className="text-xs text-gray-400">
-              Preview — notification preferences aren&apos;t persisted yet.
-            </p>
           </div>
         </Card>
       </main>

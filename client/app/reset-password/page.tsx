@@ -2,6 +2,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import { pageBg, inputPill, iconBadge } from "@/lib/ui";
 
 export default function ResetPasswordPage() {
@@ -26,10 +27,18 @@ export default function ResetPasswordPage() {
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setLoading(false);
-    setDone(true);
-    setTimeout(() => router.push("/login"), 2000);
+    try {
+      await api.post("/auth/reset-password", { token, password: form.password });
+      setDone(true);
+      setTimeout(() => router.push("/login"), 2000);
+    } catch (err) {
+      setError(
+        (err as Error)?.message ||
+          "Couldn't reset your password. The link may have expired.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const lockIcon = (

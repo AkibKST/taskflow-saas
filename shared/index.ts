@@ -77,6 +77,75 @@ export const NOTIFICATION_TYPES = Object.freeze({
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
 
+/**
+ * Per-user notification preference keys. Each maps 1:1 to a boolean column on
+ * the `NotificationPreference` model and to a toggle on /settings/notifications.
+ */
+export const NOTIFICATION_PREF_KEYS = Object.freeze({
+  TASK_ASSIGNED: "taskAssigned",
+  TASK_DUE: "taskDue",
+  COMMENT_MENTION: "commentMention",
+  MEMBER_JOINED: "memberJoined",
+  PROJECT_UPDATE: "projectUpdate",
+} as const);
+
+export type NotificationPrefKey =
+  (typeof NOTIFICATION_PREF_KEYS)[keyof typeof NOTIFICATION_PREF_KEYS];
+
+export const SUBSCRIPTION_PLANS = Object.freeze({
+  FREE: "FREE",
+  PRO: "PRO",
+  ENTERPRISE: "ENTERPRISE",
+} as const);
+
+export type SubscriptionPlan =
+  (typeof SUBSCRIPTION_PLANS)[keyof typeof SUBSCRIPTION_PLANS];
+
+export const SUBSCRIPTION_STATUS = Object.freeze({
+  ACTIVE: "ACTIVE",
+  TRIALING: "TRIALING",
+  PAST_DUE: "PAST_DUE",
+  CANCELED: "CANCELED",
+} as const);
+
+export type SubscriptionStatus =
+  (typeof SUBSCRIPTION_STATUS)[keyof typeof SUBSCRIPTION_STATUS];
+
+export interface PlanDef {
+  id: SubscriptionPlan;
+  name: string;
+  /** Monthly price in cents (USD). */
+  priceCents: number;
+  /** Included seats (members). */
+  seats: number;
+  features: readonly string[];
+}
+
+/** Plan catalog — single source of truth for pricing & seat limits. */
+export const PLAN_CATALOG: Readonly<Record<SubscriptionPlan, PlanDef>> = Object.freeze({
+  FREE: {
+    id: "FREE",
+    name: "Free",
+    priceCents: 0,
+    seats: 3,
+    features: ["Up to 3 members", "Unlimited projects", "Kanban & tasks"],
+  },
+  PRO: {
+    id: "PRO",
+    name: "Pro",
+    priceCents: 2900,
+    seats: 25,
+    features: ["Up to 25 members", "Priority support", "Advanced roles"],
+  },
+  ENTERPRISE: {
+    id: "ENTERPRISE",
+    name: "Enterprise",
+    priceCents: 9900,
+    seats: 200,
+    features: ["Up to 200 members", "SSO & audit logs", "Dedicated support"],
+  },
+});
+
 export const SOCKET_EVENTS = Object.freeze({
   // Rooms
   PROJECT_JOIN: "project:join",
@@ -111,6 +180,10 @@ export default {
   PRIORITY,
   PRIORITY_ORDER,
   NOTIFICATION_TYPES,
+  NOTIFICATION_PREF_KEYS,
+  SUBSCRIPTION_PLANS,
+  SUBSCRIPTION_STATUS,
+  PLAN_CATALOG,
   SOCKET_EVENTS,
   PAGINATION,
 };

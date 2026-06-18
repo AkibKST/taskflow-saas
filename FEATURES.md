@@ -4,7 +4,7 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 
 **Status legend:** ✅ implemented & wired end-to-end · 🚧 partial (UI present, not persisted / no provider) · ⬜ planned
 
-> Last verified: 2026-06-17 against `server/src/modules/*`, `server/src/app.ts`, `shared/index.ts`, and `client/app/*`.
+> Last verified: 2026-06-18 against `server/src/modules/*`, `server/src/app.ts`, `shared/index.ts`, and `client/app/*`.
 
 ---
 
@@ -33,8 +33,8 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 | Get current user | ✅ | `GET /auth/me` |
 | Update own profile (name / email) | ✅ | `PATCH /auth/me`; rejects email already taken by another user (`409`) |
 | Change own password | ✅ | `PATCH /auth/me/password`; verifies current password, enforces ≥8 chars + 1 uppercase + 1 number |
-| Forgot / reset password | 🚧 | Frontend pages exist (`/forgot-password`, `/reset-password`); **no backend endpoint yet** |
-| Email verification | 🚧 | Frontend page exists (`/verify-email`); **no backend endpoint yet** |
+| Forgot / reset password | ✅ | `POST /auth/forgot-password` + `POST /auth/reset-password`; single-use token (1h TTL), reset revokes all refresh tokens, no account enumeration |
+| Email verification | ✅ | Verification email on register; `POST /auth/verify-email` + `POST /auth/resend-verification`; `User.emailVerifiedAt`, single-use token (24h TTL) |
 
 ---
 
@@ -98,7 +98,7 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 | `TASK_ASSIGNED` notification | ✅ | Sent to assignees (batched via `Promise.all`) |
 | My Tasks view | ✅ | `/my-tasks` — tasks assigned to the current user across all projects, with filters |
 | Task detail page | ✅ | Description, status, priority, due date, assignees, delete |
-| Calendar (tasks by due date) | ⬜ | Only unbuilt app page |
+| Calendar (tasks by due date) | ✅ | `/calendar` — month grid grouping tasks by `dueDate` across all projects (reuses the tasks API) |
 
 ---
 
@@ -125,7 +125,7 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 | Notification types | ✅ | `TASK_ASSIGNED`, `TASK_COMMENTED`, `DUE_SOON`, `MENTIONED`, `MEMBER_JOINED` |
 | Live unread badge | ✅ | Notification bell in shared header updates via socket |
 | Notifications page | ✅ | `/notifications` — live via socket |
-| Notification preferences (toggles) | 🚧 | `/settings/notifications` UI only — not yet persisted |
+| Notification preferences (toggles) | ✅ | `/settings/notifications` persisted via `NotificationPreference` (`GET`/`PATCH /settings/notifications`) |
 
 ---
 
@@ -150,14 +150,14 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 
 ---
 
-## 10. Frontend pages (29 built)
+## 10. Frontend pages (30 built)
 
 **Marketing/public** ✅ — Landing `/`, Pricing, Features, About, Contact, 404
-**Auth** ✅ — Login, Register, Accept Invite `/invite/[token]` · 🚧 Forgot/Reset Password, Verify Email (UI only)
-**App core** ✅ — Dashboard, Projects list, Create project, Project overview, Project settings, Kanban board, Task detail, My Tasks · ⬜ Calendar
+**Auth** ✅ — Login, Register, Accept Invite `/invite/[token]`, Forgot/Reset Password, Verify Email (wired to backend)
+**App core** ✅ — Dashboard, Projects list, Create project, Project overview, Project settings, Kanban board, Task detail, My Tasks, Calendar
 **Collaboration** ✅ — Notifications, Team
-**Account** ✅ — Profile, Account settings · 🚧 Notification preferences
-**Admin (role-gated)** 🚧 — Workspace settings (UI only), User management (view-only), Billing (demo data, no payment provider)
+**Account** ✅ — Profile, Account settings, Notification preferences (persisted)
+**Admin (role-gated)** ✅ — Workspace settings (persisted), User management (role change + activate/deactivate), Billing (live subscription + invoices)
 
 **Cross-cutting** — Shared `AppHeader` (nav, role-gated admin links, live notification bell, profile dropdown, mobile nav) that doubles as the client-side **auth gate** (redirects to `/login` after auth rehydration when no user); `/login` & `/register` redirect authenticated users to `/dashboard`.
 
@@ -186,6 +186,7 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 | Readiness (DB check) | ✅ | `GET /health/ready` — `SELECT 1` |
 | Soft deletes + 30-day retention | ✅ | Projects, tasks, comments |
 | Scheduled: prune refresh tokens | ✅ | Every 6h — hard-deletes expired/revoked tokens |
+| Scheduled: prune auth tokens | ✅ | Every 6h — deletes expired/used password-reset & email-verification tokens |
 | Scheduled: hard-delete soft-deleted | ✅ | Every 24h — purges `isDeleted` rows older than 30 days |
 | Standard response envelope | ✅ | `{ success, message, data, meta? }` via `sendResponse` |
 | Database indexes for hot paths | ✅ | Kanban filter, drag-and-drop sort, notification list, token prune, etc. |
@@ -194,7 +195,36 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 
 ---
 
-## 13. Tech stack
+## 13. Account & workspace settings
+
+| Feature | Status | Notes |
+|---------|:------:|-------|
+| Notification preferences | ✅ | Per-user toggles persisted in `NotificationPreference`; `GET`/`PATCH /settings/notifications` |
+| Workspace settings (name, logo) | ✅ | `GET /settings/workspace` (any member) · `PATCH /settings/workspace` (OWNER/ADMIN); stored on `Tenant.name` / `Tenant.logoUrl` |
+| User management — change role | ✅ | `PATCH /api/v1/users/:userId/role` (OWNER/ADMIN); role hierarchy enforced (admins can't touch owners/admins or assign those roles) |
+| User management — activate / deactivate | ✅ | `PATCH /api/v1/users/:userId/status`; deactivation revokes the user's sessions |
+| Last-owner & self-edit protection | ✅ | Can't demote/deactivate the last active owner; can't change your own role/status |
+| Admin user listing (incl. inactive) | ✅ | `GET /api/v1/users/manage` (OWNER/ADMIN) — all users with status & join date |
+
+---
+
+## 14. Billing & subscriptions
+
+| Feature | Status | Notes |
+|---------|:------:|-------|
+| Subscription per tenant | ✅ | `Subscription` model (plan, status, seats, period); auto-created as `FREE` on first access |
+| Plan catalog | ✅ | `FREE` / `PRO` / `ENTERPRISE` defined once in `@taskflow/shared` (`PLAN_CATALOG`) — price + seat limits |
+| View billing | ✅ | `GET /api/v1/billing` (OWNER) — subscription, live seat usage, invoices, plan catalog |
+| Change plan | ✅ | `POST /api/v1/billing/change-plan` (OWNER); generates an `Invoice` for paid plans |
+| Cancel subscription | ✅ | `POST /api/v1/billing/cancel` (OWNER) — flags `cancelAtPeriodEnd` |
+| Invoice history | ✅ | `Invoice` model, listed on `/admin/billing` |
+| Provider-agnostic design | ✅ | `BillingProvider` interface + built-in **stub** (instant activation, no charge); Stripe drop-in documented — mirrors the email-stub pattern |
+| Real payment provider | ⬜ | No Stripe/charges yet; stub activates immediately |
+| Seat-limit enforcement | ⬜ | Seat usage shown but not enforced on invite/activate |
+
+---
+
+## 15. Tech stack
 
 | Layer | Technology |
 |-------|------------|
@@ -207,13 +237,15 @@ A complete inventory of what **TaskFlow** (multi-tenant project & task-managemen
 
 ---
 
-## 14. Remaining / not-yet-implemented
+## 16. Remaining / not-yet-implemented
 
-1. **Calendar** page (`/calendar`) — tasks by due date (only unbuilt page)
-2. **Backend for password reset & email verification** — frontend pages exist, no API endpoints
-3. **Persist** notification preferences (`/settings/notifications`) and workspace settings (`/admin/workspace`)
-4. **User management actions** on `/admin/users` (change/assign roles, deactivate) — currently view-only
-5. **Billing integration** on `/admin/billing` — demo data, no payment provider connected
+All five gaps from the previous revision are now implemented end-to-end: calendar page, password-reset/email-verification backend, settings persistence, user-management actions, and billing. What's left is hardening:
+
+1. **Real email provider** — `utils/email.ts` is still a console stub (swap in Resend/SES)
+2. **Real payment provider** — billing runs on the built-in stub provider; wire Stripe behind the `BillingProvider` interface
+3. **Seat-limit enforcement** — plan seat usage is displayed but not enforced when inviting/activating members
+
+> **Deploy note:** the schema change ships as `server/prisma/migrations/20260618223642_settings_billing_auth_tokens`. Run `npx prisma migrate deploy` (server/) to apply it — the new settings/billing/auth-token endpoints require it.
 
 ---
 

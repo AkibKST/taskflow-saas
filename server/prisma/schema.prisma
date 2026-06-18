@@ -12,12 +12,14 @@ model Tenant {
   id           String        @id @default(uuid())
   name         String
   slug         String        @unique
+  logoUrl      String?
   isActive     Boolean       @default(true)
   users        User[]
   projects     Project[]
   tasks        Task[]
   notifications Notification[]
   inviteTokens InviteToken[]
+  subscription Subscription?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -31,7 +33,11 @@ model User {
   passwordHash   String
   role           Role            @default(MEMBER)
   isActive       Boolean         @default(true)
+  emailVerifiedAt DateTime?
   refreshTokens  RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
+  notificationPreference   NotificationPreference?
   projectMembers ProjectMember[]
   createdTasks   Task[]          @relation("TaskCreator")
   assignedTasks  TaskAssignee[]
@@ -182,6 +188,78 @@ model Notification {
   @@index([tenantId])
 }
 
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model NotificationPreference {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskAssigned   Boolean  @default(true)
+  taskDue        Boolean  @default(true)
+  commentMention Boolean  @default(true)
+  memberJoined   Boolean  @default(true)
+  projectUpdate  Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+}
+
+model Subscription {
+  id          String             @id @default(uuid())
+  tenantId    String             @unique
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan   @default(FREE)
+  status      SubscriptionStatus @default(ACTIVE)
+  seats       Int                @default(3)
+  // Provider integration (e.g. Stripe). Null while on the built-in stub provider.
+  provider               String?
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean   @default(false)
+  invoices    Invoice[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  subscriptionId String
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  number         String        @unique
+  // Amount in the smallest currency unit (cents).
+  amountCents    Int
+  currency       String        @default("usd")
+  status         InvoiceStatus @default(PAID)
+  periodStart    DateTime
+  periodEnd      DateTime
+  createdAt      DateTime      @default(now())
+
+  @@index([subscriptionId, createdAt])
+}
+
 // ── ENUMS ──
 enum Role {
   OWNER
@@ -225,4 +303,23 @@ enum NotificationType {
   DUE_SOON
   MENTIONED
   MEMBER_JOINED
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
+enum InvoiceStatus {
+  PAID
+  OPEN
+  VOID
 }

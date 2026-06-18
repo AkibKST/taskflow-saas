@@ -1,7 +1,8 @@
 "use client";
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { showToast } from "@/store/toastStore";
+import { api } from "@/lib/api";
 import AppHeader from "@/components/layout/AppHeader";
 import { Card, EmptyState, SectionHeader } from "@/components/ui";
 import { btnPrimary, cx, pageBg } from "@/lib/ui";
@@ -9,13 +10,28 @@ import { btnPrimary, cx, pageBg } from "@/lib/ui";
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/30";
 
+interface Workspace {
+  name: string;
+  logoUrl?: string | null;
+}
+
 export default function WorkspaceSettingsPage() {
   const { user } = useAuthStore();
   const role = (user?.role ?? "MEMBER").toUpperCase();
   const isAdmin = role === "OWNER" || role === "ADMIN";
 
-  const [form, setForm] = useState({ workspaceName: "My Workspace", logoUrl: "" });
+  const [form, setForm] = useState({ workspaceName: "", logoUrl: "" });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .get<Workspace>("/settings/workspace")
+      .then((res) =>
+        setForm({ workspaceName: res.data.name, logoUrl: res.data.logoUrl ?? "" }),
+      )
+      .catch(() => {});
+  }, [isAdmin]);
 
   if (!isAdmin) {
     return (
@@ -33,9 +49,17 @@ export default function WorkspaceSettingsPage() {
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 400));
-    setSaving(false);
-    showToast("Workspace settings saved", "success");
+    try {
+      await api.patch("/settings/workspace", {
+        name: form.workspaceName,
+        logoUrl: form.logoUrl,
+      });
+      showToast("Workspace settings saved", "success");
+    } catch (err) {
+      showToast((err as Error)?.message || "Couldn't save settings", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -73,9 +97,6 @@ export default function WorkspaceSettingsPage() {
             <button type="submit" disabled={saving} className={btnPrimary}>
               {saving ? "Saving…" : "Save changes"}
             </button>
-            <p className="text-xs text-gray-400">
-              Preview — workspace settings aren&apos;t persisted yet.
-            </p>
           </form>
         </Card>
 

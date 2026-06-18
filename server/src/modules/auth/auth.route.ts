@@ -8,6 +8,10 @@ import {
   getMe,
   updateMe,
   changePassword,
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+  resendVerification,
 } from "./auth.controller";
 import { verifyToken } from "../../middleware/verifyToken";
 
@@ -22,6 +26,10 @@ const authLimiter = rateLimit({
 router.post("/register", authLimiter, register);
 router.post("/login", authLimiter, login);
 router.post("/refresh", authLimiter, refresh); // rate-limited — protects token endpoint
+router.post("/forgot-password", authLimiter, forgotPassword);
+router.post("/reset-password", authLimiter, resetPassword);
+router.post("/verify-email", authLimiter, verifyEmail);
+router.post("/resend-verification", authLimiter, resendVerification);
 router.post("/logout", verifyToken, logout);
 router.get("/me", verifyToken, getMe);
 router.patch("/me", verifyToken, updateMe);

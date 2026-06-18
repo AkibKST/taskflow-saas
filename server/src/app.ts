@@ -13,6 +13,8 @@ import projectRoutes from "./modules/project/project.route";
 import notificationRoutes from "./modules/notification/notification.route";
 import userRoutes from "./modules/users/user.route";
 import inviteRoutes from "./modules/invite/invite.route";
+import settingsRoutes from "./modules/settings/settings.route";
+import billingRoutes from "./modules/billing/billing.route";
 
 const app = express();
 
@@ -99,6 +101,8 @@ app.use("/api/v1/invite", inviteRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/settings", settingsRoutes);
+app.use("/api/v1/billing", billingRoutes);
 
 // 404 handler
 app.use((_req, res) =>
@@ -127,4 +131,6 @@ export default app;
 //       /:taskId/comments                 → commentRoutes (nested inside tasks)
 //   /api/v1/notifications                 → notificationRoutes
 //   /api/v1/users                         → userRoutes
+//   /api/v1/settings                      → settingsRoutes (notifications, workspace)
+//   /api/v1/billing                       → billingRoutes (subscription, invoices)
 // ──────────────────────────────────────────────────────────────────────────────

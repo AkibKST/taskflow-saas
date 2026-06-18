@@ -1,28 +1,31 @@
 "use client";
 import { useState, SyntheticEvent } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import { pageBg, inputPill, iconBadge } from "@/lib/ui";
 
 /**
- * Forgot-password UI shell.
- *
- * NOTE: there is no password-reset endpoint on the backend yet, so this page
- * does not call the API — it shows the request form and a confirmation state.
- * Wire `handleSubmit` to `POST /auth/forgot-password` once that route exists.
+ * Forgot-password page — requests a reset link via POST /auth/forgot-password.
+ * The endpoint always responds 200 (no account enumeration), so we show the
+ * same confirmation regardless of whether the email is registered.
  */
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate the request until a real endpoint is available.
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.post("/auth/forgot-password", { email });
       setSent(true);
-    }, 600);
+    } catch {
+      // Still show the neutral confirmation — never reveal account existence.
+      setSent(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

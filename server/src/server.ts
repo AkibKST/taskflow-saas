@@ -3,6 +3,7 @@ import app from "./app";
 import { initSocket } from "./socket";
 import { prisma } from "./config/prisma";
 import { pruneRefreshTokens } from "./jobs/pruneRefreshTokens";
+import { pruneAuthTokens } from "./jobs/pruneAuthTokens";
 import { hardDeleteSoftDeleted } from "./jobs/hardDeleteSoftDeleted";
 import "dotenv/config";
 
@@ -36,6 +37,14 @@ const startServer = async () => {
     setInterval(async () => {
       try { await pruneRefreshTokens(); }
       catch (e) { console.error("[JOBS] pruneRefreshTokens failed:", e); }
+    }, 6 * 60 * 60 * 1000)
+  );
+
+  // Prune expired/used password-reset & email-verification tokens every 6 hours
+  jobIntervals.push(
+    setInterval(async () => {
+      try { await pruneAuthTokens(); }
+      catch (e) { console.error("[JOBS] pruneAuthTokens failed:", e); }
     }, 6 * 60 * 60 * 1000)
   );
 
@@ -74,5 +83,6 @@ startServer();
 //
 // Scheduled jobs (registered in startServer):
 //   pruneRefreshTokens   — every 6 hours: deletes expired/revoked tokens
+//   pruneAuthTokens      — every 6 hours: deletes expired/used reset & verify tokens
 //   hardDeleteSoftDeleted — every 24 hours: hard-deletes records past 30-day retention
 // ──────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,10 @@ import {
   logoutService,
   updateProfileService,
   changePasswordService,
+  forgotPasswordService,
+  resetPasswordService,
+  verifyEmailService,
+  resendVerificationService,
 } from "./auth.service";
 import httpStatus from "http-status-codes";
 import { catchAsync } from "../../utils/catchAsync";
@@ -15,6 +19,10 @@ import {
   registerSchema,
   updateProfileSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
 } from "./auth.model";
 import AppError from "../../utils/AppError";
 import { prisma } from "../../config/prisma";
@@ -140,6 +148,58 @@ export const changePassword = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     success: true,
     message: "Password changed",
+    data: null,
+  });
+});
+
+// Forgot password — always responds 200 (no account enumeration)
+export const forgotPassword = catchAsync(async (req, res) => {
+  const body = forgotPasswordSchema.parse(req.body);
+  await forgotPasswordService(body.email);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "If an account exists for that email, a reset link has been sent",
+    data: null,
+  });
+});
+
+// Reset password — consume token, set new password
+export const resetPassword = catchAsync(async (req, res) => {
+  const body = resetPasswordSchema.parse(req.body);
+  await resetPasswordService(body.token, body.password);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Password reset successfully. Please sign in.",
+    data: null,
+  });
+});
+
+// Verify email — consume token, mark verified
+export const verifyEmail = catchAsync(async (req, res) => {
+  const body = verifyEmailSchema.parse(req.body);
+  await verifyEmailService(body.token);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Email verified successfully",
+    data: null,
+  });
+});
+
+// Resend verification — always responds 200 (no account enumeration)
+export const resendVerification = catchAsync(async (req, res) => {
+  const body = resendVerificationSchema.parse(req.body);
+  await resendVerificationService(body.email);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "If your account needs verification, a new link has been sent",
     data: null,
   });
 });

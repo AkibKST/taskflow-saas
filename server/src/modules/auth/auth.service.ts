@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import {
@@ -8,6 +9,13 @@ import {
 } from "./auth.model";
 import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
+import {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "../../utils/email";
+
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const PROFILE_SELECT = {
   id: true,
@@ -43,6 +51,27 @@ const saveRefreshToken = (userId: string, token: string) =>
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
+
+// Issue (or re-issue) an email-verification token and send the link.
+// Invalidates any prior unused token for the user first.
+export const issueEmailVerification = async (userId: string, email: string) => {
+  await prisma.emailVerificationToken.updateMany({
+    where: { userId, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  const token = crypto.randomBytes(32).toString("hex");
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      token,
+      expiresAt: new Date(Date.now() + EMAIL_VERIFY_TTL_MS),
+    },
+  });
+
+  const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
+  await sendVerificationEmail({ to: email, verifyUrl });
+};
 
 // Register — create tenant + admin user
 export const registerService = async (data: RegisterInput) => {
@@ -83,6 +112,11 @@ export const registerService = async (data: RegisterInput) => {
   });
 
   await saveRefreshToken(result.user.id, tokens.refreshToken);
+
+  // Best-effort: a failed verification email must not fail registration.
+  await issueEmailVerification(result.user.id, result.user.email).catch((e) =>
+    console.error("[AUTH] issueEmailVerification failed:", e)
+  );
 
   return { ...tokens, user: result.user, tenant: result.tenant };
 };
@@ -190,6 +224,85 @@ export const changePasswordService = async (
 
   const passwordHash = await bcrypt.hash(data.newPassword, 12);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+};
+
+// Forgot password — issue a reset token + email. Never reveals whether the
+// email exists (returns silently either way) to avoid account enumeration.
+export const forgotPasswordService = async (email: string) => {
+  const user = await prisma.user.findFirst({
+    where: { email, isActive: true },
+  });
+  if (!user) return;
+
+  await prisma.passwordResetToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  const token = crypto.randomBytes(32).toString("hex");
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    },
+  });
+
+  const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+  await sendPasswordResetEmail({ to: user.email, resetUrl });
+};
+
+// Reset password — consume a valid token, set the new password, and revoke all
+// refresh tokens so every existing session is forced to re-authenticate.
+export const resetPasswordService = async (token: string, newPassword: string) => {
+  const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    throw new AppError(400, "Invalid or expired reset link");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { passwordHash },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+    prisma.refreshToken.updateMany({
+      where: { userId: record.userId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
+  ]);
+};
+
+// Verify email — consume a valid token and stamp the user as verified.
+export const verifyEmailService = async (token: string) => {
+  const record = await prisma.emailVerificationToken.findUnique({ where: { token } });
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    throw new AppError(400, "Invalid or expired verification link");
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { emailVerifiedAt: new Date() },
+    }),
+    prisma.emailVerificationToken.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+};
+
+// Resend verification — silent no-op if the account is missing or already verified.
+export const resendVerificationService = async (email: string) => {
+  const user = await prisma.user.findFirst({
+    where: { email, isActive: true },
+  });
+  if (!user || user.emailVerifiedAt) return;
+  await issueEmailVerification(user.id, user.email);
 };
 
 // Logout

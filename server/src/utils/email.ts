@@ -14,6 +14,11 @@ export interface PasswordResetEmailOpts {
   resetUrl: string;
 }
 
+export interface VerificationEmailOpts {
+  to: string;
+  verifyUrl: string;
+}
+
 export const sendInviteEmail = async (opts: InviteEmailOpts): Promise<void> => {
   console.log(`[EMAIL STUB] ─── Invite ───────────────────────────`);
   console.log(`  To:      ${opts.to}`);
@@ -31,7 +36,17 @@ export const sendPasswordResetEmail = async (
   console.log(`───────────────────────────────────────────────────`);
 };
 
+export const sendVerificationEmail = async (
+  opts: VerificationEmailOpts
+): Promise<void> => {
+  console.log(`[EMAIL STUB] ─── Email Verification ────────────────`);
+  console.log(`  To:   ${opts.to}`);
+  console.log(`  Link: ${opts.verifyUrl}`);
+  console.log(`───────────────────────────────────────────────────`);
+};
+
 // ─── Function Summary ──────────────────────────────────────────────────────────
 // sendInviteEmail(opts)        → logs invite link to console; swap body for Resend/SES call
 // sendPasswordResetEmail(opts) → logs reset link to console; swap body for Resend/SES call
+// sendVerificationEmail(opts)  → logs verify link to console; swap body for Resend/SES call
 // ──────────────────────────────────────────────────────────────────────────────
