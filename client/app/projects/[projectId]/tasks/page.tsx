@@ -11,6 +11,9 @@ import { Task } from "@/store/taskStore";
 import { KanbanColumn } from "@/components/tasks/KanbanColumn";
 import { AssigneePicker, PickerMember } from "@/components/tasks/AssigneePicker";
 import AppHeader from "@/components/layout/AppHeader";
+import { Badge, Button, Field, Modal, Select } from "@/components/ui";
+import { control, cx, focusRing, priorityBadge } from "@/lib/ui";
+import { dueDateInfo } from "@/lib/dates";
 
 interface CreateForm {
   title: string;
@@ -34,6 +37,8 @@ export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [members, setMembers] = useState<PickerMember[]>([]);
+  // Screen-reader announcement of board moves (aria-live region below).
+  const [announcement, setAnnouncement] = useState<string>("");
   const [createForm, setCreateForm] = useState<CreateForm>({
     title: "",
     status: TASK_STATUS.TODO,
@@ -69,15 +74,15 @@ export default function TasksPage() {
     return acc;
   }, {} as TasksByStatus);
 
+  const announceMove = (title: string, destStatus: string): void => {
+    setAnnouncement(`"${title}" moved to ${destStatus.replace("_", " ")}`);
+  };
+
   const handleCreateModal = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     await createTask(createForm);
     setShowCreateModal(false);
     setCreateForm({ title: "", status: TASK_STATUS.TODO, priority: PRIORITY.MEDIUM, assigneeIds: [] });
-  };
-
-  const handleViewToggle = (): void => {
-    setView(view === "kanban" ? "list" : "kanban");
   };
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -90,8 +95,14 @@ export default function TasksPage() {
     setCreateForm({ ...createForm, [field]: value });
   };
 
-  const handleDeleteTask = (taskId: string): void => {
-    deleteTask(taskId);
+  // Status changes (from the card's move menu or the list view's select) get
+  // announced for screen readers; everything else passes straight through.
+  const handleUpdateTask = (taskId: string, patch: Partial<Task>): void => {
+    if (patch.status) {
+      const t = tasks.find((x) => x.id === taskId);
+      if (t) announceMove(t.title, patch.status);
+    }
+    updateTask(taskId, patch);
   };
 
   // Drag & drop: move a task into `destStatus` at position `destIndex`,
@@ -133,6 +144,7 @@ export default function TasksPage() {
     });
 
     if (changed.length > 0) {
+      announceMove(moved.title, destStatus);
       reorderTasks(changed);
     }
   };
@@ -148,43 +160,46 @@ export default function TasksPage() {
     <div className="min-h-screen bg-gray-50">
       <AppHeader />
 
+      {/* Announce card moves to assistive tech (drag & drop is silent). */}
+      <div aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
+
       {/* Project toolbar */}
-      <div className="bg-white border-b px-6 py-3 flex items-center gap-4">
+      <div className="flex items-center gap-4 border-b border-gray-200 bg-white px-6 py-3">
         <Link
           href={`/projects/${projectId}`}
-          className="text-gray-400 hover:text-gray-600 text-sm"
+          className={cx("rounded-full text-sm text-gray-500 transition-colors hover:text-gray-700", focusRing)}
         >
           ← Overview
         </Link>
         <h1 className="font-semibold text-gray-900">{currentProject?.name ?? "…"}</h1>
         <div className="ml-auto flex items-center gap-3">
           {isMutating && (
-            <span className="text-xs text-gray-400 animate-pulse">Saving…</span>
+            <span className="animate-pulse text-xs text-gray-500">Saving…</span>
           )}
           {onlineUserIds.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-green-600">
-              <span className="w-2 h-2 rounded-full bg-green-500" />
+            <div className="flex items-center gap-1.5 text-xs text-green-700">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
               {onlineUserIds.length} online
             </div>
           )}
-          <button
-            onClick={handleViewToggle}
-            className="text-xs border px-3 py-1.5 rounded-lg hover:bg-gray-50"
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setView(view === "kanban" ? "list" : "kanban")}
           >
             {view === "kanban" ? "List" : "Board"} view
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700"
-          >
+          </Button>
+          <Button size="sm" onClick={() => setShowCreateModal(true)}>
             + New task
-          </button>
+          </Button>
           <Link
             href={`/projects/${projectId}/settings`}
-            className="text-gray-400 hover:text-gray-600"
+            className={cx("rounded-full p-1 text-gray-500 transition-colors hover:text-gray-700", focusRing)}
             aria-label="Project settings"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
             </svg>
@@ -193,19 +208,19 @@ export default function TasksPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="bg-white border-b px-6 py-2 flex gap-6 text-xs text-gray-500">
+      <div className="flex gap-6 border-b border-gray-200 bg-white px-6 py-2 text-xs text-gray-600">
         <span>
           <strong className="text-gray-900">{stats.total}</strong> total
         </span>
         <span>
-          <strong className="text-green-600">{stats.done}</strong> done
+          <strong className="text-green-700">{stats.done}</strong> done
         </span>
         <span>
           <strong className="text-brand-600">{stats.inProgress}</strong> in progress
         </span>
         {stats.blocked > 0 && (
           <span>
-            <strong className="text-red-500">{stats.blocked}</strong> blocked
+            <strong className="text-rose-600">{stats.blocked}</strong> blocked
           </span>
         )}
       </div>
@@ -223,121 +238,149 @@ export default function TasksPage() {
                 members={members}
                 onMoveTask={handleMoveTask}
                 onCreateTask={createTask}
-                onUpdate={updateTask}
+                onUpdate={handleUpdateTask}
                 onDelete={deleteTask}
               />
             ))}
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto space-y-2">
+          <div className="mx-auto max-w-4xl space-y-2">
             {tasks.length === 0 && (
-              <p className="text-center text-gray-400 py-12">No tasks yet</p>
+              <p className="py-12 text-center text-gray-500">No tasks yet</p>
             )}
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className={`bg-white border rounded-xl px-4 py-3 flex items-center gap-4 ${
-                  task._isOptimistic ? "opacity-60" : ""
-                }`}
-              >
-                <span className="text-xs text-gray-400 w-24 flex-shrink-0">
-                  {task.status.replace("_", " ")}
-                </span>
-                <span className="flex-1 text-sm font-medium">{task.title}</span>
-                <span className="text-xs text-gray-400">{task.priority}</span>
-                <button
-                  onClick={() => handleDeleteTask(task.id)}
-                  className="text-gray-300 hover:text-red-500 text-lg leading-none"
+            {tasks.map((task) => {
+              const due = task.dueDate
+                ? dueDateInfo(task.dueDate, { done: task.status === TASK_STATUS.DONE })
+                : null;
+              return (
+                <div
+                  key={task.id}
+                  className={cx(
+                    "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200/70",
+                    task._isOptimistic && "opacity-60",
+                  )}
                 >
-                  &times;
-                </button>
-              </div>
-            ))}
+                  <select
+                    aria-label={`Status of "${task.title}"`}
+                    value={task.status}
+                    onChange={(e) => handleUpdateTask(task.id, { status: e.target.value })}
+                    className={cx(
+                      control,
+                      "w-36 shrink-0 cursor-pointer !px-2 !py-1 text-xs font-medium",
+                    )}
+                  >
+                    {Object.values(TASK_STATUS).map((s) => (
+                      <option key={s} value={s}>
+                        {s.replace("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Link
+                    href={`/projects/${projectId}/tasks/${task.id}`}
+                    className={cx(
+                      "min-w-0 flex-1 rounded-full text-sm font-medium text-gray-900 hover:text-brand-600",
+                      focusRing,
+                    )}
+                  >
+                    <span className="block truncate">{task.title}</span>
+                  </Link>
+
+                  {due && (
+                    <span
+                      className={cx(
+                        "text-xs",
+                        due.overdue ? "font-semibold text-rose-600" : "text-gray-500",
+                      )}
+                    >
+                      {due.overdue ? `Overdue · ${due.label}` : due.label}
+                    </span>
+                  )}
+
+                  <Badge className={priorityBadge[task.priority] ?? priorityBadge.MEDIUM}>
+                    {task.priority}
+                  </Badge>
+
+                  <AssigneePicker
+                    compact
+                    members={members}
+                    selected={(task.assignees ?? []).map((a) => a.id)}
+                    onChange={(ids) => updateTask(task.id, { assigneeIds: ids } as Partial<Task>)}
+                  />
+
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    aria-label={`Delete "${task.title}" (undo available)`}
+                    className={cx(
+                      "rounded-full p-1 text-gray-500 transition-colors hover:bg-rose-50 hover:text-rose-600",
+                      focusRing,
+                    )}
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </main>
 
       {/* Create modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold mb-4">New task</h2>
-            <form onSubmit={handleCreateModal} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title
-                </label>
-                <input
-                  autoFocus
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-                  value={createForm.title}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
-                    value={createForm.status}
-                    onChange={(e) => handleSelectChange(e, "status")}
-                  >
-                    {Object.values(TASK_STATUS).map((s) => (
-                      <option key={s} value={s}>
-                        {String(s).replace("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
-                    value={createForm.priority}
-                    onChange={(e) => handleSelectChange(e, "priority")}
-                  >
-                    {Object.values(PRIORITY).map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assignees
-                </label>
-                <AssigneePicker
-                  members={members}
-                  selected={createForm.assigneeIds}
-                  onChange={(ids) => setCreateForm({ ...createForm, assigneeIds: ids })}
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="text-sm bg-brand-600 text-white px-5 py-2 rounded-lg hover:bg-brand-700"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="New task"
+      >
+        <form onSubmit={handleCreateModal} className="space-y-4">
+          <Field
+            label="Title"
+            autoFocus
+            required
+            value={createForm.title}
+            onChange={handleInputChange}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Status"
+              value={createForm.status}
+              onChange={(e) => handleSelectChange(e, "status")}
+            >
+              {Object.values(TASK_STATUS).map((s) => (
+                <option key={s} value={s}>
+                  {String(s).replace("_", " ")}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Priority"
+              value={createForm.priority}
+              onChange={(e) => handleSelectChange(e, "priority")}
+            >
+              {Object.values(PRIORITY).map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
           </div>
-        </div>
-      )}
+          <div>
+            <p className="mb-1.5 text-sm font-medium text-gray-700">Assignees</p>
+            <AssigneePicker
+              members={members}
+              selected={createForm.assigneeIds}
+              onChange={(ids) => setCreateForm({ ...createForm, assigneeIds: ids })}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">Create</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

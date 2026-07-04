@@ -3,7 +3,10 @@ import { useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { pageBg, inputPill, iconBadge } from "@/lib/ui";
+import { Button } from "@/components/ui";
+import Alert from "@/components/ui/Alert";
+import AuthCard from "@/components/auth/AuthCard";
+import PasswordField from "@/components/auth/PasswordField";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -41,87 +44,68 @@ export default function ResetPasswordPage() {
     }
   };
 
-  const lockIcon = (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="11" width="16" height="9" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  );
-
   return (
-    <div className={`flex min-h-screen items-center justify-center ${pageBg} p-4`}>
-      <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-8 shadow-2xl sm:p-10">
-        <div className="text-center">
-          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-            {lockIcon}
-          </span>
-          <h1 className="text-2xl font-bold text-gray-800">
-            {done ? "Password reset!" : "Set new password"}
-          </h1>
-          <p className="mt-1 text-sm text-gray-400">
-            {done
-              ? "Your password has been updated. Redirecting to login…"
-              : "Choose a strong new password for your account."}
-          </p>
-        </div>
-
-        {!done && (
-          <>
-            {!token && (
-              <div className="mt-6 rounded-xl bg-rose-50 px-4 py-3 text-center text-sm text-rose-700">
+    <AuthCard
+      title={done ? "Password reset!" : "Set new password"}
+      subtitle={
+        done
+          ? "Your password has been updated. Redirecting to login…"
+          : "Choose a strong new password for your account."
+      }
+      icon={
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="4" y="11" width="16" height="9" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+      }
+    >
+      {!done && (
+        <>
+          {!token && (
+            <div className="mb-5">
+              <Alert>
                 Invalid or expired reset link.{" "}
                 <Link href="/forgot-password" className="font-semibold underline">
                   Request a new one
                 </Link>
-              </div>
-            )}
+              </Alert>
+            </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-              <div className={inputPill}>
-                <span className={iconBadge}>{lockIcon}</span>
-                <input
-                  type="password"
-                  placeholder="New password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-                />
-              </div>
-              <div className={inputPill}>
-                <span className={iconBadge}>{lockIcon}</span>
-                <input
-                  type="password"
-                  placeholder="Confirm password"
-                  required
-                  autoComplete="new-password"
-                  value={form.confirm}
-                  onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-                  className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <PasswordField
+              label="New password"
+              placeholder="At least 8 characters"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <PasswordField
+              label="Confirm password"
+              placeholder="Repeat the password"
+              required
+              autoComplete="new-password"
+              value={form.confirm}
+              onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+            />
 
-              {error && (
-                <p className="px-4 text-xs font-medium text-rose-600">{error}</p>
-              )}
+            {error && <Alert>{error}</Alert>}
 
-              <button
-                type="submit"
-                disabled={loading || !token}
-                className="mx-auto mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-brand-500/30 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? "Resetting…" : "Reset password"}
-              </button>
+            <Button type="submit" fullWidth loading={loading} disabled={!token}>
+              {loading ? "Resetting…" : "Reset password"}
+            </Button>
 
-              <Link href="/login" className="block text-center text-xs font-semibold text-brand-600 hover:text-brand-700">
-                Back to sign in
-              </Link>
-            </form>
-          </>
-        )}
-      </div>
-    </div>
+            <Link
+              href="/login"
+              className="block text-center text-sm font-semibold text-brand-600 hover:text-brand-700"
+            >
+              Back to sign in
+            </Link>
+          </form>
+        </>
+      )}
+    </AuthCard>
   );
 }

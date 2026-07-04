@@ -93,7 +93,7 @@ export default function AcceptInvitePage() {
               <strong>{info.inviterName}</strong> invited you to join{" "}
               <strong>{info.tenantName}</strong> as <strong>{info.role}</strong>.
             </p>
-            <p className="mt-1 text-xs text-gray-400">Joining as {info.email}</p>
+            <p className="mt-1 text-xs text-gray-500">Joining as {info.email}</p>
 
             <form onSubmit={handleAccept} className="mt-6 space-y-4 text-left">
               <div>
@@ -144,7 +144,7 @@ export default function AcceptInvitePage() {
           <>
             <p className="mb-4 text-5xl">🎉</p>
             <h1 className="text-2xl font-bold text-gray-800">Welcome aboard!</h1>
-            <p className="mt-2 text-sm text-gray-400">
+            <p className="mt-2 text-sm text-gray-600">
               Your account is ready. Taking you to the dashboard…
             </p>
           </>
@@ -155,7 +155,7 @@ export default function AcceptInvitePage() {
           <>
             <p className="mb-4 text-5xl">⚠️</p>
             <h1 className="text-2xl font-bold text-gray-800">Invite unavailable</h1>
-            <p className="mt-2 text-sm text-gray-400">{errorMsg}</p>
+            <p className="mt-2 text-sm text-gray-600">{errorMsg}</p>
             <Link
               href="/login"
               className="mt-6 block text-sm font-semibold text-brand-600 hover:text-brand-700"

@@ -1,10 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import MarketingLayout from "@/components/marketing/MarketingLayout";
+import { Avatar } from "@/components/ui";
+
+export const metadata: Metadata = {
+  title: "About · TaskFlow",
+  description:
+    "TaskFlow is built for teams who ship — fast, real-time task management without the configuration overhead.",
+  openGraph: {
+    title: "About TaskFlow",
+    description: "Built for teams who ship.",
+    type: "website",
+  },
+};
 
 const TEAM = [
-  { name: "Jordan Lee", role: "Co-founder & CEO", avatar: "J" },
-  { name: "Alex Kim", role: "Co-founder & CTO", avatar: "A" },
-  { name: "Sam Rivera", role: "Head of Design", avatar: "S" },
-  { name: "Morgan Chen", role: "Lead Engineer", avatar: "M" },
+  { name: "Jordan Lee", role: "Co-founder & CEO" },
+  { name: "Alex Kim", role: "Co-founder & CTO" },
+  { name: "Sam Rivera", role: "Head of Design" },
+  { name: "Morgan Chen", role: "Lead Engineer" },
 ];
 
 const VALUES = [
@@ -16,26 +30,7 @@ const VALUES = [
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="border-b border-white/60 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
-            </span>
-            <span className="text-lg font-bold text-gray-900">TaskFlow</span>
-          </Link>
-          <nav className="flex items-center gap-4 text-sm font-medium text-gray-500">
-            <Link href="/features" className="hover:text-gray-800">Features</Link>
-            <Link href="/pricing" className="hover:text-gray-800">Pricing</Link>
-            <Link href="/login" className="rounded-full border border-gray-200 px-4 py-1.5 hover:bg-gray-50">Sign in</Link>
-            <Link href="/register" className="rounded-full bg-brand-600 px-4 py-1.5 text-white hover:bg-brand-700">Get started</Link>
-          </nav>
-        </div>
-      </header>
-
+    <MarketingLayout>
       <main className="mx-auto max-w-4xl px-6 py-20">
         <div className="mb-16 text-center">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
@@ -83,11 +78,9 @@ export default function AboutPage() {
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
             {TEAM.map((m) => (
               <div key={m.name} className="rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-gray-100">
-                <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xl font-bold text-white">
-                  {m.avatar}
-                </span>
+                <Avatar name={m.name} size="lg" className="mx-auto mb-3" />
                 <p className="text-sm font-semibold text-gray-800">{m.name}</p>
-                <p className="mt-0.5 text-xs text-gray-400">{m.role}</p>
+                <p className="mt-0.5 text-xs text-gray-500">{m.role}</p>
               </div>
             ))}
           </div>
@@ -108,10 +101,6 @@ export default function AboutPage() {
           </div>
         </div>
       </main>
-
-      <footer className="mt-12 border-t border-gray-100 py-8 text-center text-sm text-gray-400">
-        © {new Date().getFullYear()} TaskFlow. All rights reserved.
-      </footer>
-    </div>
+    </MarketingLayout>
   );
 }

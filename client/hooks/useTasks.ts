@@ -8,6 +8,9 @@ import { showToast } from "@/store/toastStore";
 
 const BATCH_REORDER_EVENT = "task:updated";
 
+/** How long "Undo" stays available after deleting a task. */
+const UNDO_WINDOW_MS = 5000;
+
 interface ReorderUpdate {
   id: string;
   status?: string;
@@ -38,6 +41,7 @@ export const useTasks = (projectId: string): UseTasksReturn => {
     confirmUpdate,
     rollbackUpdate,
     optimisticDelete,
+    confirmDelete,
     rollbackDelete,
     syncCreated,
     syncUpdated,
@@ -123,17 +127,39 @@ export const useTasks = (projectId: string): UseTasksReturn => {
     [projectId, optimisticUpdate, confirmUpdate, rollbackUpdate]
   );
 
+  // Delete with an undo window: the card disappears immediately, but the API
+  // call is deferred a few seconds so "Undo" on the toast can restore it
+  // without a network round-trip. Mistakes are recoverable, not fatal.
   const deleteTask = useCallback(
     async (taskId: string) => {
       const snapshot = optimisticDelete(taskId);
-      try {
-        await api.delete(`/projects/${projectId}/tasks/${taskId}`);
-      } catch (err: any) {
-        if (snapshot) rollbackDelete(snapshot);
-        showToast(err.message || "Failed to delete task", "error");
-      }
+      if (!snapshot) return;
+      confirmDelete(); // local-only so far — nothing is actually saving yet
+
+      let undone = false;
+      const timer = setTimeout(async () => {
+        if (undone) return;
+        try {
+          await api.delete(`/projects/${projectId}/tasks/${taskId}`);
+        } catch (err: any) {
+          rollbackDelete(snapshot);
+          showToast(err.message || "Failed to delete task", "error");
+        }
+      }, UNDO_WINDOW_MS);
+
+      showToast("Task deleted", "info", {
+        duration: UNDO_WINDOW_MS,
+        action: {
+          label: "Undo",
+          onAction: () => {
+            undone = true;
+            clearTimeout(timer);
+            rollbackDelete(snapshot);
+          },
+        },
+      });
     },
-    [projectId, optimisticDelete, rollbackDelete]
+    [projectId, optimisticDelete, confirmDelete, rollbackDelete]
   );
 
   // Single batch endpoint — replaces N parallel PATCH calls for drag-and-drop reorder
@@ -169,7 +195,7 @@ export const useTasks = (projectId: string): UseTasksReturn => {
 //
 // createTask(data)             → optimistic add; POST /tasks; rollback on error
 // updateTask(taskId, patch)    → optimistic update with mutationId; PATCH /tasks/:id
-// deleteTask(taskId)           → optimistic delete; DELETE /tasks/:id
+// deleteTask(taskId)           → optimistic delete + undo toast; deferred DELETE /tasks/:id
 // reorderTasks(updates)        → batch PATCH /tasks/reorder; re-fetches on failure
 //
 // Socket listeners:

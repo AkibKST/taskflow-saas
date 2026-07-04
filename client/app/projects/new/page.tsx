@@ -2,6 +2,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DEFAULT_PROJECT_COLOR } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import { parseApiError } from "@/lib/apiError";
 import { showToast } from "@/store/toastStore";
@@ -25,7 +26,7 @@ export default function CreateProjectPage() {
   const [form, setForm] = useState({
     name: "",
     description: "",
-    color: "#6366f1",
+    color: DEFAULT_PROJECT_COLOR,
     status: "ACTIVE",
     startDate: "",
     endDate: "",
@@ -56,7 +57,7 @@ export default function CreateProjectPage() {
       <AppHeader />
 
       <main className="mx-auto max-w-2xl px-6 py-8">
-        <Link href="/projects" className="text-sm text-gray-400 hover:text-gray-600">
+        <Link href="/projects" className="text-sm text-gray-500 hover:text-gray-700">
           ← Back to projects
         </Link>
 
@@ -131,7 +132,7 @@ export default function CreateProjectPage() {
                   value={form.color}
                   onChange={(e) => setForm({ ...form, color: e.target.value })}
                 />
-                <span className="text-xs text-gray-400">Pick a color to identify this project</span>
+                <span className="text-xs text-gray-500">Pick a color to identify this project</span>
               </div>
             </div>
 

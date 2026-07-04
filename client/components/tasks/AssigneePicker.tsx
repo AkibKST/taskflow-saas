@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, FC } from "react";
+import { Avatar } from "@/components/ui";
 
 export interface PickerMember {
   userId: string;
@@ -58,8 +59,8 @@ export const AssigneePicker: FC<AssigneePickerProps> = ({
         }}
         className={
           compact
-            ? "flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-400 hover:border-brand-400 hover:text-brand-600"
-            : "flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-brand-500"
+            ? "flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-500 outline-none transition-colors hover:border-brand-400 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500"
+            : "flex w-full items-center justify-between rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-600 shadow-sm outline-none transition-colors hover:border-gray-400 focus-visible:ring-4 focus-visible:ring-brand-500/15"
         }
       >
         {selectedMembers.length === 0 ? (
@@ -67,16 +68,16 @@ export const AssigneePicker: FC<AssigneePickerProps> = ({
         ) : compact ? (
           <span className="flex -space-x-1.5">
             {selectedMembers.slice(0, 3).map((m) => (
-              <span
+              <Avatar
                 key={m.userId}
-                title={m.name}
-                className="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-brand-500 text-[10px] font-semibold text-white"
-              >
-                {m.name?.[0]?.toUpperCase()}
-              </span>
+                id={m.userId}
+                name={m.name}
+                size="xs"
+                className="border border-white"
+              />
             ))}
             {selectedMembers.length > 3 && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-gray-200 text-[10px] text-gray-600">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-gray-200 text-[11px] text-gray-600">
                 +{selectedMembers.length - 3}
               </span>
             )}
@@ -90,11 +91,11 @@ export const AssigneePicker: FC<AssigneePickerProps> = ({
 
       {open && (
         <div
-          className="absolute z-50 mt-1 max-h-56 w-56 overflow-auto rounded-xl border border-gray-100 bg-white p-1 shadow-lg"
+          className="absolute z-50 mt-1 max-h-56 w-56 overflow-auto rounded-2xl border border-gray-100 bg-white p-1 shadow-lg"
           onClick={(e) => e.stopPropagation()}
         >
           {members.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-400">No project members</p>
+            <p className="px-3 py-2 text-xs text-gray-500">No project members</p>
           ) : (
             members.map((m) => {
               const isSel = selected.includes(m.userId);
@@ -103,11 +104,9 @@ export const AssigneePicker: FC<AssigneePickerProps> = ({
                   key={m.userId}
                   type="button"
                   onClick={() => toggle(m.userId)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-[10px] font-semibold text-white">
-                    {m.name?.[0]?.toUpperCase()}
-                  </span>
+                  <Avatar id={m.userId} name={m.name} size="sm" />
                   <span className="min-w-0 flex-1 truncate text-gray-700">{m.name}</span>
                   {isSel && (
                     <svg className="h-4 w-4 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

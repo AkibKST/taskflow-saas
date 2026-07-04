@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { DEFAULT_PROJECT_COLOR } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import AppHeader from "@/components/layout/AppHeader";
 import { Card, Badge, EmptyState, SectionHeader, StatCard } from "@/components/ui";
@@ -87,7 +88,7 @@ export default function ProjectOverviewPage() {
       <AppHeader />
 
       <main className="mx-auto max-w-4xl px-6 py-8">
-        <Link href="/projects" className="text-sm text-gray-400 hover:text-gray-600">
+        <Link href="/projects" className="text-sm text-gray-500 hover:text-gray-700">
           ← Projects
         </Link>
 
@@ -106,7 +107,7 @@ export default function ProjectOverviewPage() {
             <div className="mb-6 mt-3 flex flex-wrap items-center gap-3">
               <span
                 className="h-5 w-5 shrink-0 rounded-full"
-                style={{ backgroundColor: project.color ?? "#6366f1" }}
+                style={{ backgroundColor: project.color ?? DEFAULT_PROJECT_COLOR }}
               />
               <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
               <Badge className={projectStatusBadge[project.status] ?? projectStatusBadge.ACTIVE}>
@@ -162,7 +163,7 @@ export default function ProjectOverviewPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 border-t border-gray-100 pt-4 text-xs text-gray-400">
+                <div className="mt-4 border-t border-gray-100 pt-4 text-xs text-gray-500">
                   <div className="flex justify-between">
                     <span>Start</span>
                     <span>{fmt(project.startDate)}</span>
@@ -197,7 +198,7 @@ export default function ProjectOverviewPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-gray-800">{m.user.name}</p>
-                          <p className="truncate text-xs text-gray-400">{m.user.email}</p>
+                          <p className="truncate text-xs text-gray-500">{m.user.email}</p>
                         </div>
                         <Badge className={roleBadge[m.role] ?? roleBadge.MEMBER}>{m.role}</Badge>
                       </li>

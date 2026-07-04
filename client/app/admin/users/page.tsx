@@ -136,7 +136,7 @@ export default function AdminUsersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <tr className="border-b border-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="pb-3 pr-4">User</th>
                     <th className="pb-3 pr-4">Role</th>
                     <th className="pb-3 pr-4">Status</th>
@@ -159,10 +159,10 @@ export default function AdminUsersPage() {
                               <p className="truncate font-medium text-gray-800">
                                 {u.name}
                                 {u.id === user?.id && (
-                                  <span className="ml-1 text-xs font-normal text-gray-400">(you)</span>
+                                  <span className="ml-1 text-xs font-normal text-gray-500">(you)</span>
                                 )}
                               </p>
-                              <p className="truncate text-xs text-gray-400">{u.email}</p>
+                              <p className="truncate text-xs text-gray-500">{u.email}</p>
                             </div>
                           </div>
                         </td>
@@ -190,7 +190,7 @@ export default function AdminUsersPage() {
                             {u.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </td>
-                        <td className="py-3 pr-4 text-gray-400">{fmt(u.createdAt)}</td>
+                        <td className="py-3 pr-4 text-gray-500">{fmt(u.createdAt)}</td>
                         <td className="py-3 text-right">
                           {manageable ? (
                             <button

@@ -186,7 +186,7 @@ export default function TeamPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-gray-800">{inv.email}</p>
-                    <p className="truncate text-xs text-gray-400">
+                    <p className="truncate text-xs text-gray-500">
                       Invited as {inv.role} · expires{" "}
                       {new Date(inv.expiresAt).toLocaleDateString()}
                     </p>
@@ -244,10 +244,10 @@ export default function TeamPage() {
                     <p className="truncate text-sm font-semibold text-gray-800">
                       {m.name}
                       {m.id === user?.id && (
-                        <span className="ml-2 text-xs font-normal text-gray-400">(you)</span>
+                        <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
                       )}
                     </p>
-                    <p className="truncate text-xs text-gray-400">{m.email}</p>
+                    <p className="truncate text-xs text-gray-500">{m.email}</p>
                   </div>
                   <Badge className={roleBadge[m.role?.toUpperCase()] ?? roleBadge.MEMBER}>
                     {m.role}

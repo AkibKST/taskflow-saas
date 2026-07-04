@@ -2,6 +2,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { DEFAULT_PROJECT_COLOR } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import AppHeader from "@/components/layout/AppHeader";
 import { Card, Badge, EmptyState, SectionHeader } from "@/components/ui";
@@ -60,7 +61,7 @@ export default function ProjectSettingsPage() {
   const [loadError, setLoadError] = useState("");
 
   // edit form
-  const [form, setForm] = useState({ name: "", description: "", color: "#6366f1", status: "ACTIVE" });
+  const [form, setForm] = useState({ name: "", description: "", color: DEFAULT_PROJECT_COLOR, status: "ACTIVE" });
   const [saving, setSaving] = useState(false);
 
   // add member form
@@ -89,7 +90,7 @@ export default function ProjectSettingsPage() {
         setForm({
           name: found.name ?? "",
           description: found.description ?? "",
-          color: found.color ?? "#6366f1",
+          color: found.color ?? DEFAULT_PROJECT_COLOR,
           status: found.status ?? "ACTIVE",
         });
       })
@@ -193,7 +194,7 @@ export default function ProjectSettingsPage() {
       <AppHeader />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
-        <Link href={`/projects/${projectId}/tasks`} className="text-sm text-gray-400 hover:text-gray-600">
+        <Link href={`/projects/${projectId}/tasks`} className="text-sm text-gray-500 hover:text-gray-700">
           ← Back to board
         </Link>
 
@@ -210,7 +211,7 @@ export default function ProjectSettingsPage() {
         ) : (
           <>
             <div className="mb-6 mt-3 flex items-center gap-3">
-              <span className="h-4 w-4 rounded-full" style={{ backgroundColor: project?.color ?? "#6366f1" }} />
+              <span className="h-4 w-4 rounded-full" style={{ backgroundColor: project?.color ?? DEFAULT_PROJECT_COLOR }} />
               <h1 className="text-2xl font-bold text-gray-900">{project?.name}</h1>
               <Badge className={projectStatusBadge[project?.status ?? "ACTIVE"]}>
                 {project?.status?.replace("_", " ")}
@@ -296,7 +297,7 @@ export default function ProjectSettingsPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-800">{m.user.name}</p>
-                        <p className="truncate text-xs text-gray-400">{m.user.email}</p>
+                        <p className="truncate text-xs text-gray-500">{m.user.email}</p>
                       </div>
                       {canManage ? (
                         <select

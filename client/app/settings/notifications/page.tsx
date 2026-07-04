@@ -63,7 +63,7 @@ export default function NotificationPreferencesPage() {
       <AppHeader />
 
       <main className="mx-auto max-w-2xl px-6 py-8">
-        <Link href="/settings" className="text-sm text-gray-400 hover:text-gray-600">
+        <Link href="/settings" className="text-sm text-gray-500 hover:text-gray-700">
           ← Account settings
         </Link>
 
@@ -76,7 +76,7 @@ export default function NotificationPreferencesPage() {
               <li key={p.key} className="flex items-start justify-between gap-4 py-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-800">{p.label}</p>
-                  <p className="text-xs text-gray-400">{p.description}</p>
+                  <p className="text-xs text-gray-500">{p.description}</p>
                 </div>
                 <button
                   role="switch"

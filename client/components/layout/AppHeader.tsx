@@ -16,7 +16,7 @@ import { SOCKET_EVENTS } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
-import { Badge, IconBadge } from "@/components/ui";
+import { Avatar, Badge, Logo } from "@/components/ui";
 import GlobalSearch from "@/components/layout/GlobalSearch";
 import { btnGhost, cx, roleBadge } from "@/lib/ui";
 
@@ -33,13 +33,6 @@ const NAV: { href: string; label: string }[] = [
   { href: "/calendar", label: "Calendar" },
   { href: "/team", label: "Team" },
 ];
-
-const checkIcon = (
-  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 11l3 3L22 4" />
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
-);
 
 const bellIcon = (
   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -140,10 +133,7 @@ export default function AppHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-white/60 bg-white/70 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-6 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <IconBadge>{checkIcon}</IconBadge>
-          <span className="text-lg font-bold text-gray-900">TaskFlow</span>
-        </Link>
+        <Logo href="/dashboard" />
 
         <nav className="flex items-center gap-1">
           {NAV.map((n) => navLink(n.href, n.label))}
@@ -154,12 +144,12 @@ export default function AppHeader() {
           <GlobalSearch />
           <Link
             href="/notifications"
-            className="relative text-gray-400 transition-colors hover:text-gray-600"
+            className="relative rounded-full text-gray-500 outline-none transition-colors hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
           >
             {bellIcon}
             {unread > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+              <span className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-bold text-white">
                 {unread > 9 ? "9+" : unread}
               </span>
             )}
@@ -171,11 +161,9 @@ export default function AppHeader() {
               onClick={() => setMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-gray-100"
+              className="flex items-center gap-2 rounded-full p-1 outline-none transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white">
-                {(user?.name ?? "U").charAt(0).toUpperCase()}
-              </span>
+              <Avatar id={user?.id} name={user?.name ?? "User"} />
               <div className="hidden pr-1 text-left sm:block">
                 <p className="text-sm font-semibold leading-tight text-gray-800">{user?.name}</p>
                 <Badge className={roleBadge[role] ?? roleBadge.MEMBER}>{role}</Badge>
@@ -199,7 +187,7 @@ export default function AppHeader() {
                   {/* identity (mobile, where the chip text is hidden) */}
                   <div className="border-b border-gray-100 px-3 pb-2 pt-1 sm:hidden">
                     <p className="truncate text-sm font-semibold text-gray-800">{user?.name}</p>
-                    <p className="truncate text-xs text-gray-400">{user?.email}</p>
+                    <p className="truncate text-xs text-gray-500">{user?.email}</p>
                   </div>
 
                   {/* primary nav — only needed on small screens */}
@@ -215,7 +203,7 @@ export default function AppHeader() {
                   {isAdmin && (
                     <>
                       <div className="my-1 border-t border-gray-100" />
-                      <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                         Admin
                       </p>
                       {menuItem("/admin/users", "User management")}

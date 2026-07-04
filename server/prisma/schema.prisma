@@ -90,7 +90,8 @@ model Project {
   tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  color       String?         @default("#00ff41")
+  // Keep in sync with DEFAULT_PROJECT_COLOR in @taskflow/shared.
+  color       String?         @default("#6366f1")
   status      ProjectStatus   @default(ACTIVE)
   startDate   DateTime?
   endDate     DateTime?

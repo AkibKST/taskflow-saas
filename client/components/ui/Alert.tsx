@@ -5,15 +5,17 @@ interface AlertProps {
 
 const styles: Record<NonNullable<AlertProps["variant"]>, string> = {
   error: "border-red-200 bg-red-50 text-red-700",
-  success: "border-green-200 bg-green-50 text-green-700",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
   info: "border-brand-100 bg-brand-50 text-brand-700",
 };
 
+/** The one inline alert — used for form-level errors and confirmations. */
 export default function Alert({ variant = "error", children }: AlertProps) {
   return (
     <div
       role="alert"
-      className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${styles[variant]}`}
+      aria-live="assertive"
+      className={`flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm ${styles[variant]}`}
     >
       <svg
         className="mt-0.5 h-4 w-4 shrink-0"
@@ -27,7 +29,7 @@ export default function Alert({ variant = "error", children }: AlertProps) {
           clipRule="evenodd"
         />
       </svg>
-      <span>{children}</span>
+      <span className="leading-snug">{children}</span>
     </div>
   );
 }

@@ -45,6 +45,7 @@ export interface TaskState {
 
   // Optimistic delete
   optimisticDelete: (taskId: string) => Task | undefined;
+  confirmDelete: () => void;
   rollbackDelete: (snapshot: Task) => void;
 
   // Real-time sync from socket
@@ -133,6 +134,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }));
     return snapshot;
   },
+
+  confirmDelete: () =>
+    set((s) => ({ isMutating: s.pendingMutationIds.size > 0 })),
 
   rollbackDelete: (snapshot) =>
     set((s) => ({

@@ -176,7 +176,7 @@ export default function NotificationsPage() {
                       <p className={cx("text-sm", n.isRead ? "text-gray-600" : "font-semibold text-gray-900")}>
                         {n.message}
                       </p>
-                      <p className="mt-0.5 text-xs text-gray-400">{timeAgo(n.createdAt)}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{timeAgo(n.createdAt)}</p>
                     </div>
                     {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" />}
                   </div>

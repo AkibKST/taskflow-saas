@@ -1,33 +1,37 @@
 "use client";
 import { ButtonHTMLAttributes } from "react";
+import { buttonClasses, cx, ButtonSize, ButtonVariant } from "@/lib/ui";
+
+/**
+ * The one button. Pill-shaped per the design spec (radius: pill = interactive
+ * chip). Every clickable action in the app should render through this
+ * component or `buttonClasses` from `@/lib/ui` (for styled `<Link>`s) — no
+ * raw `bg-brand-600` buttons in pages.
+ */
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   loading?: boolean;
   fullWidth?: boolean;
 }
 
-const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary:
-    "bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus-visible:ring-brand-500/40",
-  secondary:
-    "border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-gray-300",
-  ghost: "text-gray-600 hover:bg-gray-100 focus-visible:ring-gray-300",
-};
-
 export default function Button({
   variant = "primary",
+  size = "md",
   loading = false,
   fullWidth = false,
   disabled,
   children,
   className = "",
+  type = "button",
   ...props
 }: ButtonProps) {
   return (
     <button
+      type={type}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${fullWidth ? "w-full" : ""} ${className}`}
+      className={buttonClasses(variant, size, cx(fullWidth && "w-full", className))}
       {...props}
     >
       {loading && (

@@ -177,6 +177,13 @@ export const PAGINATION = Object.freeze({
   MAX_LIMIT: 200,
 } as const);
 
+/**
+ * Default project accent color — brand indigo (= Tailwind `brand-500` on the
+ * client). Single source of truth: the Prisma column default and every client
+ * fallback must use this value.
+ */
+export const DEFAULT_PROJECT_COLOR = "#6366f1";
+
 // Export as default for CommonJS compatibility
 export default {
   ROLES,
@@ -193,4 +200,5 @@ export default {
   PLAN_CATALOG,
   SOCKET_EVENTS,
   PAGINATION,
+  DEFAULT_PROJECT_COLOR,
 };

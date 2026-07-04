@@ -185,7 +185,7 @@ export default function CalendarPage() {
             <>
               <div className="mb-1 grid grid-cols-7 gap-1">
                 {WEEKDAYS.map((d) => (
-                  <div key={d} className="px-1 py-1 text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <div key={d} className="px-1 py-1 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
                     {d}
                   </div>
                 ))}
@@ -228,7 +228,7 @@ export default function CalendarPage() {
                               className={cx(
                                 "flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-xs transition-colors",
                                 t.status === "DONE"
-                                  ? "bg-gray-50 text-gray-400 line-through hover:bg-gray-100"
+                                  ? "bg-gray-50 text-gray-500 line-through hover:bg-gray-100"
                                   : overdue
                                     ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
                                     : "bg-gray-50 text-gray-700 hover:bg-brand-50 hover:text-brand-700",
@@ -240,7 +240,7 @@ export default function CalendarPage() {
                           );
                         })}
                         {dayTasks.length > 3 && (
-                          <span className="px-1.5 text-[11px] text-gray-400">
+                          <span className="px-1.5 text-[11px] text-gray-500">
                             +{dayTasks.length - 3} more
                           </span>
                         )}
@@ -253,7 +253,7 @@ export default function CalendarPage() {
           )}
 
           {!loading && unscheduledCount > 0 && (
-            <p className="mt-4 text-xs text-gray-400">
+            <p className="mt-4 text-xs text-gray-500">
               {unscheduledCount} task{unscheduledCount !== 1 ? "s" : ""} without a due date{" "}
               {unscheduledCount !== 1 ? "are" : "is"} not shown.
             </p>
@@ -262,7 +262,7 @@ export default function CalendarPage() {
 
         {/* Priority legend — mirrors the dot colors above. */}
         {!loading && scheduled.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-4 px-1 text-xs text-gray-400">
+          <div className="mt-3 flex flex-wrap items-center gap-4 px-1 text-xs text-gray-500">
             {Object.keys(priorityBadge).map((p) => (
               <span key={p} className="flex items-center gap-1.5">
                 <span className={cx("h-1.5 w-1.5 rounded-full", priorityDot[p])} />

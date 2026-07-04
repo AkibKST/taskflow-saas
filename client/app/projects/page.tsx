@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DEFAULT_PROJECT_COLOR } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import { useProjectStore, Project } from "@/store/projectStore";
 import AppHeader from "@/components/layout/AppHeader";
@@ -80,7 +81,7 @@ export default function ProjectsPage() {
                 <div className="flex items-start gap-3">
                   <span
                     className="mt-1 h-3 w-3 flex-shrink-0 rounded-full"
-                    style={{ backgroundColor: (project as { color?: string }).color ?? "#6366f1" }}
+                    style={{ backgroundColor: (project as { color?: string }).color ?? DEFAULT_PROJECT_COLOR }}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -96,7 +97,7 @@ export default function ProjectsPage() {
                         {project.description}
                       </p>
                     )}
-                    <p className="mt-2 text-xs text-gray-400">
+                    <p className="mt-2 text-xs text-gray-500">
                       {(project as { _count?: { tasks?: number } })._count?.tasks ?? 0} tasks ·{" "}
                       {project.members?.length ?? 0} members
                     </p>

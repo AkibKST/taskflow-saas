@@ -149,7 +149,7 @@ export default function TaskDetailPage() {
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link
           href={`/projects/${projectId}/tasks`}
-          className="text-sm text-gray-400 hover:text-gray-600"
+          className="text-sm text-gray-500 hover:text-gray-700"
         >
           ← Back to board
         </Link>
@@ -264,7 +264,7 @@ export default function TaskDetailPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-gray-800">{a.user.name}</p>
-                          <p className="truncate text-xs text-gray-400">{a.user.email}</p>
+                          <p className="truncate text-xs text-gray-500">{a.user.email}</p>
                         </div>
                       </li>
                     ))}

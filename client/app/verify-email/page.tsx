@@ -3,9 +3,39 @@ import { useEffect, useRef, useState, FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { pageBg } from "@/lib/ui";
+import { Button, Field } from "@/components/ui";
+import Alert from "@/components/ui/Alert";
+import AuthCard from "@/components/auth/AuthCard";
+import { buttonClasses } from "@/lib/ui";
 
 type Status = "verifying" | "success" | "error" | "no-token";
+
+const ICONS: Record<Status, React.ReactNode> = {
+  verifying: (
+    <svg className="h-6 w-6 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+    </svg>
+  ),
+  success: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5 10 17.5 19 6.5" />
+    </svg>
+  ),
+  error: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
+  "no-token": (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </svg>
+  ),
+};
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -41,66 +71,53 @@ export default function VerifyEmailPage() {
   };
 
   const config = {
-    verifying: { emoji: "⏳", title: "Verifying your email…", hint: "Please wait a moment." },
-    success: { emoji: "✅", title: "Email verified!", hint: "Your email has been confirmed. You can now sign in." },
-    error: { emoji: "⚠️", title: "Verification failed", hint: "The link may have expired. Request a new one below." },
-    "no-token": { emoji: "🔗", title: "Invalid link", hint: "This verification link is missing a token." },
+    verifying: { title: "Verifying your email…", hint: "Please wait a moment." },
+    success: { title: "Email verified!", hint: "Your email has been confirmed. You can now sign in." },
+    error: { title: "Verification failed", hint: "The link may have expired. Request a new one below." },
+    "no-token": { title: "Invalid link", hint: "This verification link is missing a token." },
   }[status];
 
   const showResend = status === "error" || status === "no-token";
 
   return (
-    <div className={`flex min-h-screen items-center justify-center ${pageBg} p-4`}>
-      <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-8 text-center shadow-2xl sm:p-10">
-        <p className="mb-4 text-5xl">{config.emoji}</p>
-        <h1 className="text-2xl font-bold text-gray-800">{config.title}</h1>
-        <p className="mt-2 text-sm text-gray-400">{config.hint}</p>
-
-        {showResend && (
-          <div className="mt-6 border-t border-gray-100 pt-6 text-left">
-            {resent ? (
-              <p className="rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700">
-                If your account needs verification, a new link is on its way.
-              </p>
-            ) : (
-              <form onSubmit={handleResend} className="space-y-3">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Resend verification email
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="you@example.com"
-                  value={resendEmail}
-                  onChange={(e) => setResendEmail(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/30"
-                />
-                <button
-                  type="submit"
-                  disabled={resending}
-                  className="w-full rounded-full bg-gradient-to-r from-brand-600 to-brand-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60"
-                >
-                  {resending ? "Sending…" : "Send new link"}
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-
-        <div className="mt-8 space-y-3">
-          {status === "success" && (
-            <Link
-              href="/login"
-              className="block w-full rounded-full bg-gradient-to-r from-brand-600 to-brand-500 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/30"
-            >
-              Sign in
-            </Link>
+    <AuthCard title={config.title} subtitle={config.hint} icon={ICONS[status]}>
+      {showResend && (
+        <div className="border-t border-gray-100 pt-6">
+          {resent ? (
+            <Alert variant="success">
+              If your account needs verification, a new link is on its way.
+            </Alert>
+          ) : (
+            <form onSubmit={handleResend} className="space-y-4">
+              <Field
+                label="Resend verification email"
+                type="email"
+                required
+                placeholder="you@company.com"
+                value={resendEmail}
+                onChange={(e) => setResendEmail(e.target.value)}
+              />
+              <Button type="submit" fullWidth loading={resending}>
+                {resending ? "Sending…" : "Send new link"}
+              </Button>
+            </form>
           )}
-          <Link href="/login" className="block text-xs font-semibold text-brand-600 hover:text-brand-700">
-            Back to sign in
-          </Link>
         </div>
+      )}
+
+      <div className="mt-6 space-y-3">
+        {status === "success" && (
+          <Link href="/login" className={buttonClasses("primary", "md", "w-full")}>
+            Sign in
+          </Link>
+        )}
+        <Link
+          href="/login"
+          className="block text-center text-sm font-semibold text-brand-600 hover:text-brand-700"
+        >
+          Back to sign in
+        </Link>
       </div>
-    </div>
+    </AuthCard>
   );
 }

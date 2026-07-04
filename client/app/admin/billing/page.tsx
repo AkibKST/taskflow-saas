@@ -146,7 +146,7 @@ export default function BillingPage() {
                   </div>
                   <p className="mt-1 text-sm text-gray-500">{monthly(billing.plan.priceCents)}</p>
                   {sub.currentPeriodEnd && (
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-500">
                       {sub.cancelAtPeriodEnd ? "Cancels on " : "Renews on "}
                       {fmtDate(sub.currentPeriodEnd)}
                     </p>
@@ -212,7 +212,7 @@ export default function BillingPage() {
                   );
                 })}
               </div>
-              <p className="mt-4 text-xs text-gray-400">
+              <p className="mt-4 text-xs text-gray-500">
                 Plan changes take effect immediately on the built-in billing provider
                 (no card required). Connect a payment provider to charge real cards.
               </p>
@@ -228,7 +228,7 @@ export default function BillingPage() {
                     <li key={inv.id} className="flex items-center justify-between py-3">
                       <div>
                         <p className="text-sm font-medium text-gray-800">{inv.number}</p>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-gray-500">
                           {new Date(inv.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
                         </p>
                       </div>

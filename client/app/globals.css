@@ -2,8 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Skeleton shimmer. The keyframes must live here (not only in
+   tailwind.config) because Tailwind emits keyframes only when the
+   `animate-shimmer` utility is used — the raw `.shimmer` class isn't enough. */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
 .shimmer {
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
+}
+
+/* Respect users who ask for less motion: freeze decorative animation and
+   transitions (spinners, shimmer, hover scale). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

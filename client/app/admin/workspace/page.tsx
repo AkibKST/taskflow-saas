@@ -90,7 +90,7 @@ export default function WorkspaceSettingsPage() {
                 value={form.logoUrl}
                 onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 Displayed in the sidebar and email notifications.
               </p>
             </div>

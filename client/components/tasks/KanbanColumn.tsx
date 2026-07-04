@@ -3,7 +3,10 @@ import { useState, FC, SyntheticEvent, ChangeEvent } from "react";
 import { TaskCard } from "./TaskCard";
 import { PickerMember } from "./AssigneePicker";
 import { Task } from "@/store/taskStore";
+import { Button } from "@/components/ui";
+import { cx } from "@/lib/ui";
 
+/** Soft work-in-progress guideline per column — advisory, never blocking. */
 const WIP_LIMIT = 10;
 
 const DRAG_KEY = "text/taskId";
@@ -68,9 +71,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
   };
 
   // Thin insertion line showing where the card will land.
-  const placeholder = (
-    <div className="h-0.5 rounded-full bg-brand-500" />
-  );
+  const placeholder = <div className="h-0.5 rounded-full bg-brand-500" />;
 
   const handleAdd = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -88,28 +89,27 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
     if (e.key === "Escape") setAdding(false);
   };
 
-  const handleAddClick = (): void => {
-    setAdding(true);
-  };
-
-  const handleCancelClick = (): void => {
-    setAdding(false);
-  };
-
   const atLimit = tasks.length >= WIP_LIMIT;
 
   return (
-    <div className="flex flex-col w-72 flex-shrink-0">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+    <div className="flex w-72 flex-shrink-0 flex-col">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-600">
           {status.replace("_", " ")}
         </h3>
         <span
-          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-            atLimit ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-500"
-          }`}
+          title={
+            atLimit
+              ? `This column has reached its work-in-progress guideline of ${WIP_LIMIT} tasks — consider finishing some before adding more.`
+              : undefined
+          }
+          className={cx(
+            "rounded-full px-2 py-0.5 text-xs font-bold",
+            atLimit ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600",
+          )}
         >
-          {tasks.length}{atLimit ? ` / ${WIP_LIMIT}` : ""}
+          {tasks.length}
+          {atLimit ? ` / ${WIP_LIMIT}` : ""}
         </span>
       </div>
 
@@ -124,9 +124,10 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
           if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDrag();
         }}
         onDrop={handleColumnDrop}
-        className={`flex flex-col gap-2 min-h-[120px] rounded-xl p-2 transition-colors ${
-          dragOver ? "bg-brand-100 ring-2 ring-brand-300" : "bg-gray-100"
-        }`}
+        className={cx(
+          "flex min-h-[120px] flex-col gap-2 rounded-2xl p-2 transition-colors",
+          dragOver ? "bg-brand-100 ring-2 ring-brand-300" : "bg-gray-100",
+        )}
       >
         {tasks.map((task, index) => (
           <div key={task.id} className="flex flex-col gap-2">
@@ -156,35 +157,29 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
         {dropIndex === tasks.length && placeholder}
 
         {adding ? (
-          <form onSubmit={handleAdd} className="bg-white rounded-lg p-2 shadow-sm">
+          <form onSubmit={handleAdd} className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-200/70">
             <input
               autoFocus
-              className="w-full text-sm outline-none border-b pb-1 mb-2"
+              aria-label="New task title"
+              className="mb-2 w-full border-b border-gray-300 pb-1 text-sm outline-none transition-colors placeholder:text-gray-400 focus:border-brand-500"
               placeholder="Task title..."
               value={quickTitle}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
             />
             <div className="flex gap-2">
-              <button
-                type="submit"
-                className="text-xs bg-brand-600 text-white px-3 py-1 rounded-md hover:bg-brand-700"
-              >
+              <Button type="submit" size="sm">
                 Add
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelClick}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setAdding(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         ) : (
           <button
-            onClick={handleAddClick}
-            className="text-xs text-gray-400 hover:text-gray-600 hover:bg-white/60 rounded-lg p-2 text-left transition-colors"
+            onClick={() => setAdding(true)}
+            className="rounded-xl p-2 text-left text-xs font-medium text-gray-500 outline-none transition-colors hover:bg-white/60 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             + Add task
           </button>

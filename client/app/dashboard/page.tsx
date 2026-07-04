@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { SOCKET_EVENTS } from "@taskflow/shared";
+import { DEFAULT_PROJECT_COLOR, SOCKET_EVENTS } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
@@ -208,7 +208,7 @@ export default function DashboardPage() {
                             <span className={cx("h-2 w-2 shrink-0 rounded-full", t.status === "DONE" ? "bg-emerald-400" : "bg-brand-400")} />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium text-gray-800">{t.title}</p>
-                              {t.project && <p className="truncate text-xs text-gray-400">{t.project.name}</p>}
+                              {t.project && <p className="truncate text-xs text-gray-500">{t.project.name}</p>}
                             </div>
                             <Badge className={priorityBadge[t.priority] ?? priorityBadge.MEDIUM}>{t.priority}</Badge>
                             <Badge className={taskStatusBadge[t.status] ?? taskStatusBadge.TODO}>
@@ -242,11 +242,11 @@ export default function DashboardPage() {
                           className="group rounded-2xl border border-gray-100 p-4 transition-shadow hover:shadow-md"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: p.color ?? "#6366f1" }} />
+                            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: p.color ?? DEFAULT_PROJECT_COLOR }} />
                             <h3 className="truncate font-semibold text-gray-900 group-hover:text-brand-600">{p.name}</h3>
                           </div>
                           <div className="mt-2 flex items-center justify-between">
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gray-500">
                               {p._count?.tasks ?? 0} tasks · {p.members?.length ?? 0} members
                             </span>
                             <Badge className={projectStatusBadge[p.status] ?? projectStatusBadge.ACTIVE}>
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                           <div key={s}>
                             <div className="mb-1 flex items-center justify-between text-xs">
                               <span className="font-medium text-gray-600">{s.replace("_", " ")}</span>
-                              <span className="text-gray-400">{count}</span>
+                              <span className="text-gray-500">{count}</span>
                             </div>
                             <div className="h-2 overflow-hidden rounded-full bg-gray-100">
                               <div
@@ -313,7 +313,7 @@ export default function DashboardPage() {
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium text-gray-800">{m.name}</p>
-                              <p className="truncate text-xs text-gray-400">{m.email}</p>
+                              <p className="truncate text-xs text-gray-500">{m.email}</p>
                             </div>
                             <Badge className={roleBadge[m.role?.toUpperCase()] ?? roleBadge.MEMBER}>
                               {m.role}

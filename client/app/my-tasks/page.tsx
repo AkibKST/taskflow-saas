@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DEFAULT_PROJECT_COLOR } from "@taskflow/shared";
 import { api } from "@/lib/api";
 import AppHeader from "@/components/layout/AppHeader";
 import { Card, Badge, EmptyState, SectionHeader } from "@/components/ui";
@@ -85,7 +86,7 @@ export default function MyTasksPage() {
     d ? new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" }) : null;
 
   const projectColor = (id?: string) =>
-    projects.find((p) => p.id === id)?.color ?? "#6366f1";
+    projects.find((p) => p.id === id)?.color ?? DEFAULT_PROJECT_COLOR;
 
   return (
     <div className={cx("min-h-screen", pageBg)}>
@@ -111,7 +112,7 @@ export default function MyTasksPage() {
           <SectionHeader
             title={`Tasks (${filtered.length})`}
             action={
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-gray-500">
                 {tasks.filter((t) => t.status !== "DONE").length} open
               </span>
             }
@@ -168,7 +169,7 @@ export default function MyTasksPage() {
                     {t.project && (
                       <Link
                         href={`/projects/${t.project.id}/tasks`}
-                        className="truncate text-xs text-gray-400 hover:text-brand-500"
+                        className="truncate text-xs text-gray-500 hover:text-brand-500"
                       >
                         {t.project.name}
                       </Link>
@@ -180,7 +181,7 @@ export default function MyTasksPage() {
                         "shrink-0 text-xs",
                         new Date(t.dueDate) < new Date() && t.status !== "DONE"
                           ? "font-semibold text-rose-500"
-                          : "text-gray-400",
+                          : "text-gray-500",
                       )}
                     >
                       {fmt(t.dueDate)}

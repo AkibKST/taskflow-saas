@@ -83,14 +83,14 @@ export default function GlobalSearch() {
       {open && q.trim().length >= 2 && (
         <div className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-2xl bg-white p-2 shadow-xl ring-1 ring-gray-100">
           {loading && (
-            <p className="px-3 py-2 text-sm text-gray-400">Searching…</p>
+            <p className="px-3 py-2 text-sm text-gray-500">Searching…</p>
           )}
           {!loading && !hasResults && (
-            <p className="px-3 py-2 text-sm text-gray-400">No matches</p>
+            <p className="px-3 py-2 text-sm text-gray-500">No matches</p>
           )}
           {!loading && results && results.projects.length > 0 && (
             <div>
-              <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Projects
               </p>
               {results.projects.map((p) => (
@@ -110,7 +110,7 @@ export default function GlobalSearch() {
           )}
           {!loading && results && results.tasks.length > 0 && (
             <div>
-              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Tasks
               </p>
               {results.tasks.map((t) => (
@@ -120,7 +120,7 @@ export default function GlobalSearch() {
                   className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
                 >
                   <span className="block truncate text-gray-800">{t.title}</span>
-                  <span className={cx("text-xs text-gray-400")}>
+                  <span className={cx("text-xs text-gray-500")}>
                     {t.project?.name} · {t.status}
                   </span>
                 </button>

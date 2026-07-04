@@ -100,7 +100,7 @@ export default function AccountSettingsPage() {
                 required
               />
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               Note: changing your email requires re-verification on some plans.
             </p>
             <button type="submit" disabled={profileSaving} className={btnPrimary}>

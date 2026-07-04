@@ -2,14 +2,16 @@ import Link from "next/link";
 
 export default function Logo({
   light = false,
+  href = "/",
   className = "",
 }: {
   light?: boolean;
+  href?: string;
   className?: string;
 }) {
   return (
     <Link
-      href="/"
+      href={href}
       className={`inline-flex items-center gap-2.5 font-bold tracking-tight ${light ? "text-white" : "text-gray-900"} ${className}`}
     >
       <span

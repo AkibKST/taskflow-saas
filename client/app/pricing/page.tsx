@@ -1,4 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import MarketingLayout from "@/components/marketing/MarketingLayout";
+
+export const metadata: Metadata = {
+  title: "Pricing · TaskFlow",
+  description:
+    "Simple, transparent pricing. Start for free and scale as your team grows — no hidden fees.",
+  openGraph: {
+    title: "TaskFlow pricing",
+    description: "Start for free. Scale as your team grows. No hidden fees.",
+    type: "website",
+  },
+};
 
 const PLANS = [
   {
@@ -49,32 +62,13 @@ const PLANS = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="border-b border-white/60 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
-            </span>
-            <span className="text-lg font-bold text-gray-900">TaskFlow</span>
-          </Link>
-          <nav className="flex items-center gap-4 text-sm font-medium text-gray-500">
-            <Link href="/features" className="hover:text-gray-800">Features</Link>
-            <Link href="/about" className="hover:text-gray-800">About</Link>
-            <Link href="/login" className="rounded-full border border-gray-200 px-4 py-1.5 hover:bg-gray-50">Sign in</Link>
-            <Link href="/register" className="rounded-full bg-brand-600 px-4 py-1.5 text-white hover:bg-brand-700">Get started</Link>
-          </nav>
-        </div>
-      </header>
-
+    <MarketingLayout>
       <main className="mx-auto max-w-6xl px-6 py-20">
         <div className="mb-16 text-center">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
             Simple, transparent pricing
           </h1>
-          <p className="mt-4 text-lg text-gray-500">
+          <p className="mt-4 text-lg text-gray-600">
             Start for free. Scale as your team grows. No hidden fees.
           </p>
         </div>
@@ -94,16 +88,16 @@ export default function PricingPage() {
                   Most popular
                 </span>
               )}
-              <p className={`text-sm font-semibold ${plan.highlight ? "text-brand-100" : "text-gray-500"}`}>
+              <p className={`text-sm font-semibold ${plan.highlight ? "text-brand-100" : "text-gray-600"}`}>
                 {plan.name}
               </p>
               <p className={`mt-2 text-4xl font-extrabold ${plan.highlight ? "text-white" : "text-gray-900"}`}>
                 {plan.price}
-                <span className={`ml-1 text-base font-normal ${plan.highlight ? "text-brand-200" : "text-gray-400"}`}>
+                <span className={`ml-1 text-base font-normal ${plan.highlight ? "text-brand-100" : "text-gray-500"}`}>
                   /{plan.period}
                 </span>
               </p>
-              <p className={`mt-3 text-sm ${plan.highlight ? "text-brand-100" : "text-gray-500"}`}>
+              <p className={`mt-3 text-sm ${plan.highlight ? "text-brand-100" : "text-gray-600"}`}>
                 {plan.description}
               </p>
 
@@ -113,6 +107,7 @@ export default function PricingPage() {
                     <svg
                       className={`h-4 w-4 shrink-0 ${plan.highlight ? "text-brand-200" : "text-brand-500"}`}
                       viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      aria-hidden="true"
                     >
                       <path d="M5 12.5 10 17.5 19 6.5" />
                     </svg>
@@ -140,7 +135,7 @@ export default function PricingPage() {
           <div className="mt-6 grid grid-cols-2 gap-4 text-sm text-gray-600 sm:grid-cols-4">
             {["99.9% uptime SLA", "SSL encryption", "Daily backups", "Email support"].map((f) => (
               <div key={f} className="flex items-center justify-center gap-2">
-                <svg className="h-4 w-4 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="h-4 w-4 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M5 12.5 10 17.5 19 6.5" />
                 </svg>
                 {f}
@@ -149,10 +144,6 @@ export default function PricingPage() {
           </div>
         </div>
       </main>
-
-      <footer className="mt-12 border-t border-gray-100 py-8 text-center text-sm text-gray-400">
-        © {new Date().getFullYear()} TaskFlow. All rights reserved.
-      </footer>
-    </div>
+    </MarketingLayout>
   );
 }
