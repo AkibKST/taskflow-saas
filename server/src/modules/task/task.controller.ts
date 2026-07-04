@@ -14,7 +14,9 @@ import {
   updateTaskService,
   deleteTaskService,
   reorderTasksService,
+  listSubtasksService,
 } from "./task.service";
+import { listActivityService } from "./activity.service";
 
 const getProjectId = (req: Request) =>
   Array.isArray(req.params.projectId)
@@ -75,6 +77,34 @@ export const deleteTask = catchAsync(async (req: Request, res: Response) => {
     success: true,
     message: "Task deleted",
     data: null,
+  });
+});
+
+export const listSubtasks = catchAsync(async (req: Request, res: Response) => {
+  const subtasks = await listSubtasksService(
+    getTaskId(req),
+    getProjectId(req),
+    req.user.tenantId
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Sub-tasks fetched",
+    data: subtasks,
+  });
+});
+
+export const getActivity = catchAsync(async (req: Request, res: Response) => {
+  const activity = await listActivityService(
+    getTaskId(req),
+    getProjectId(req),
+    req.user.tenantId
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Task activity fetched",
+    data: activity,
   });
 });
 

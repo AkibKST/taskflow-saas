@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from "express";
-import { prisma } from "../config/prisma";
 import AppError from "../utils/AppError";
+import { checkProjectAccess } from "../utils/projectAccess";
 
 // Guards project- and task-scoped routes by verifying the caller is a member
 // of the project in :projectId.
-// Tenant-level OWNER and ADMIN bypass this check — they can access all projects.
-// Attaches (req as any).projectRole so downstream handlers can inspect it.
+// Tenant-level OWNER and ADMIN bypass the membership requirement — they can
+// access all projects in their own tenant.
+// Attaches (req as any).projectRole so downstream handlers can enforce
+// project-level permissions (MANAGER/MEMBER can write, VIEWER is read-only).
 export const requireProjectMember = async (
   req: Request,
   _res: Response,
@@ -20,33 +22,17 @@ export const requireProjectMember = async (
 
     if (!projectId) return next(new AppError(400, "projectId param required"));
 
-    if (role === "OWNER" || role === "ADMIN") return next();
+    const access = await checkProjectAccess(userId, tenantId, role, projectId);
 
-    const membership = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId } },
-      select: { role: true },
-    });
-
-    if (!membership) {
-      // Verify the project belongs to the user's tenant before giving a 403
-      const project = await prisma.project.findFirst({
-        where: { id: projectId, tenantId, isDeleted: false },
-        select: { id: true },
-      });
-      if (!project) return next(new AppError(404, "Project not found"));
+    if (!access.ok) {
+      if (access.reason === "not_found")
+        return next(new AppError(404, "Project not found"));
       return next(new AppError(403, "You are not a member of this project"));
     }
 
-    (req as any).projectRole = membership.role;
+    (req as any).projectRole = access.projectRole;
     next();
   } catch (err) {
     next(err);
   }
 };
-
-// ─── Function Summary ──────────────────────────────────────────────────────────
-// requireProjectMember(req, res, next)
-//   → Express middleware; checks ProjectMember table for :projectId + current user.
-//     OWNER/ADMIN bypass. Sets (req as any).projectRole for downstream use.
-//     Returns 403 if user is not a project member, 404 if project doesn't exist.
-// ──────────────────────────────────────────────────────────────────────────────

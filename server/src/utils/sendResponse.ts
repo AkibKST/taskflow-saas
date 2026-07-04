@@ -1,7 +1,12 @@
 import { Response } from "express";
 
 interface TMeta {
-  total: number;
+  total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  /** Unread count for notification list responses. */
+  unread?: number;
 }
 
 interface TResponse<T> {

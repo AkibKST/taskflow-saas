@@ -5,6 +5,7 @@ import type { TaskStatus, Priority } from "../../generated/prisma/client";
 import { SOCKET_EVENTS, NOTIFICATION_TYPES } from "@taskflow/shared";
 import { emitToProject } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
+import { recordActivity, TASK_ACTIVITY } from "./activity.service";
 import {
   CreateTaskInput,
   UpdateTaskInput,
@@ -42,7 +43,13 @@ export const listTasksService = async (
   const { status, priority, assigneeId, page, limit } = query;
   const skip = (page - 1) * limit;
 
-  const where: Prisma.TaskWhereInput = { projectId, tenantId, isDeleted: false };
+  // The board shows top-level tasks only; sub-tasks are fetched per-parent.
+  const where: Prisma.TaskWhereInput = {
+    projectId,
+    tenantId,
+    isDeleted: false,
+    parentTaskId: null,
+  };
   if (status) where.status = status as TaskStatus;
   if (priority) where.priority = priority as Priority;
   if (assigneeId) where.assignees = { some: { userId: assigneeId } };
@@ -75,6 +82,18 @@ export const createTaskService = async (
 ) => {
   const { assigneeIds = [], ...rest } = data;
 
+  // A sub-task's parent must live in the same project/tenant and be top-level
+  // (we allow a single level of nesting, not arbitrary depth).
+  if (rest.parentTaskId) {
+    const parent = await prisma.task.findFirst({
+      where: { id: rest.parentTaskId, projectId, tenantId, isDeleted: false },
+      select: { parentTaskId: true },
+    });
+    if (!parent) throw new AppError(400, "Parent task not found in this project");
+    if (parent.parentTaskId)
+      throw new AppError(400, "Cannot nest a sub-task under another sub-task");
+  }
+
   const task = await prisma.task.create({
     data: {
       ...rest,
@@ -97,6 +116,7 @@ export const createTaskService = async (
 
   const dto = toTaskDTO(task);
   emitToProject(projectId, SOCKET_EVENTS.TASK_CREATED, dto);
+  await recordActivity(task.id, createdById, TASK_ACTIVITY.CREATED, { title: task.title });
 
   // Batch-notify assignees in parallel instead of serial awaits
   await Promise.all(
@@ -152,6 +172,31 @@ export const updateTaskService = async (
   const dto = toTaskDTO(updated);
   emitToProject(projectId, SOCKET_EVENTS.TASK_UPDATED, dto);
 
+  // Record what changed on the task's activity feed.
+  if (status !== undefined && status !== existing.status) {
+    await recordActivity(taskId, actorId, TASK_ACTIVITY.STATUS_CHANGED, {
+      from: existing.status,
+      to: status,
+    });
+  }
+  if (priority !== undefined && priority !== existing.priority) {
+    await recordActivity(taskId, actorId, TASK_ACTIVITY.PRIORITY_CHANGED, {
+      from: existing.priority,
+      to: priority,
+    });
+  }
+  if (rest.title !== undefined && rest.title !== existing.title) {
+    await recordActivity(taskId, actorId, TASK_ACTIVITY.TITLE_CHANGED, {
+      from: existing.title,
+      to: rest.title,
+    });
+  }
+  if (assigneeIds !== undefined) {
+    await recordActivity(taskId, actorId, TASK_ACTIVITY.ASSIGNEES_CHANGED, {
+      count: assigneeIds.length,
+    });
+  }
+
   // Notify newly added assignees (batch, in parallel)
   if (assigneeIds) {
     const previousAssigneeIds = new Set(
@@ -180,6 +225,26 @@ export const updateTaskService = async (
   }
 
   return dto;
+};
+
+// List the sub-tasks of a parent task (one level of nesting).
+export const listSubtasksService = async (
+  parentTaskId: string,
+  projectId: string,
+  tenantId: string
+) => {
+  await assertTaskInProject(parentTaskId, projectId, tenantId);
+  const subtasks = await prisma.task.findMany({
+    where: { parentTaskId, projectId, tenantId, isDeleted: false },
+    include: {
+      assignees: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+      },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+  });
+  return subtasks.map(toTaskDTO);
 };
 
 export const deleteTaskService = async (

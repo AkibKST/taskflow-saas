@@ -20,9 +20,16 @@ export const updateProfileSchema = z
   .object({
     name: z.string().min(2, "Name min 2 chars").max(100).optional(),
     email: z.string().email("Invalid email").optional(),
+    // Required only when changing the email — re-authenticates a sensitive change
+    // so a hijacked session can't silently take over the account by swapping email.
+    currentPassword: z.string().min(1).optional(),
   })
   .refine((d) => d.name !== undefined || d.email !== undefined, {
     message: "Provide a name or email to update",
+  })
+  .refine((d) => d.email === undefined || !!d.currentPassword, {
+    message: "Current password is required to change your email",
+    path: ["currentPassword"],
   });
 
 export const changePasswordSchema = z.object({

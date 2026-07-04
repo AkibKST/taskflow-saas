@@ -3,25 +3,17 @@ import http from "http";
 import jwt from "jsonwebtoken";
 import { envVars } from "../config/env";
 import { SOCKET_EVENTS } from "@taskflow/shared";
+import { checkProjectAccess } from "../utils/projectAccess";
+import { logger } from "../utils/logger";
+import { initPresence, getPresence } from "./presence";
 
 let io: Server | null = null;
 
-// In-memory presence fallback (replaced by Redis when REDIS_URL is set)
-const localPresence = new Map<string, Set<string>>();
-
-// Helpers that work whether presence is in-memory or delegated to Redis adapter
-const presenceAdd = (projectId: string, userId: string) => {
-  if (!localPresence.has(projectId)) localPresence.set(projectId, new Set());
-  localPresence.get(projectId)!.add(userId);
-};
-const presenceRemove = (projectId: string, userId: string) => {
-  localPresence.get(projectId)?.delete(userId);
-};
-const presenceList = (projectId: string): string[] => [
-  ...(localPresence.get(projectId) ?? []),
-];
-
 export const initSocket = async (httpServer: http.Server): Promise<Server> => {
+  // Reference-counted presence, Redis-backed when REDIS_URL is set.
+  await initPresence();
+
+
   io = new Server(httpServer, {
     cors: {
       origin: envVars.CLIENT_URL,
@@ -68,9 +60,11 @@ export const initSocket = async (httpServer: http.Server): Promise<Server> => {
       const payload = jwt.verify(token, envVars.JWT_SECRET) as {
         userId: string;
         tenantId: string;
+        role: string;
       };
       (socket as any).userId = payload.userId;
       (socket as any).tenantId = payload.tenantId;
+      (socket as any).role = payload.role;
       next();
     } catch {
       next(new Error("Invalid token"));
@@ -79,40 +73,71 @@ export const initSocket = async (httpServer: http.Server): Promise<Server> => {
 
   io.on("connection", (socket: Socket) => {
     const userId = (socket as any).userId as string;
+    const tenantId = (socket as any).tenantId as string;
+    const role = (socket as any).role as string;
 
-    console.log(`⚡ Socket connected → ${socket.id} (user: ${userId})`);
+    logger.debug("socket connected", { socketId: socket.id, userId });
+
+    // Track which projects THIS socket joined so presence can be released on
+    // disconnect (socket.rooms is already cleared by the time 'disconnect' fires).
+    const joinedProjects = new Set<string>();
 
     // Private notification room
     socket.join(`user:${userId}`);
 
-    socket.on(SOCKET_EVENTS.PROJECT_JOIN, (projectId: string) => {
-      socket.join(`project:${projectId}`);
-      presenceAdd(projectId, userId);
-      io!.to(`project:${projectId}`).emit(SOCKET_EVENTS.PRESENCE_UPDATE, {
-        projectId,
-        onlineUserIds: presenceList(projectId),
-      });
-    });
+    // Joining a project room grants live task/comment/presence events for that
+    // project — so it must enforce the SAME tenant + membership rules as the
+    // REST layer. Without this, any authenticated user could join any project's
+    // room (including other tenants') and receive its live data.
+    socket.on(
+      SOCKET_EVENTS.PROJECT_JOIN,
+      async (projectId: string, ack?: (res: { ok: boolean }) => void) => {
+        try {
+          if (typeof projectId !== "string" || !projectId) {
+            return ack?.({ ok: false });
+          }
+          const access = await checkProjectAccess(userId, tenantId, role, projectId);
+          if (!access.ok) {
+            logger.warn("socket PROJECT_JOIN denied", { userId, tenantId, projectId });
+            return ack?.({ ok: false });
+          }
 
-    socket.on(SOCKET_EVENTS.PROJECT_LEAVE, (projectId: string) => {
-      socket.leave(`project:${projectId}`);
-      presenceRemove(projectId, userId);
-      io!.to(`project:${projectId}`).emit(SOCKET_EVENTS.PRESENCE_UPDATE, {
-        projectId,
-        onlineUserIds: presenceList(projectId),
-      });
-    });
-
-    socket.on("disconnect", () => {
-      console.log(`🔌 Socket disconnected → ${socket.id} (user: ${userId})`);
-      localPresence.forEach((users, projectId) => {
-        if (users.delete(userId)) {
+          socket.join(`project:${projectId}`);
+          joinedProjects.add(projectId);
+          const online = await getPresence().join(projectId, userId);
           io!.to(`project:${projectId}`).emit(SOCKET_EVENTS.PRESENCE_UPDATE, {
             projectId,
-            onlineUserIds: [...users],
+            onlineUserIds: online,
           });
+          ack?.({ ok: true });
+        } catch (err) {
+          logger.error("socket PROJECT_JOIN error", { err: String(err) });
+          ack?.({ ok: false });
         }
+      }
+    );
+
+    socket.on(SOCKET_EVENTS.PROJECT_LEAVE, async (projectId: string) => {
+      socket.leave(`project:${projectId}`);
+      joinedProjects.delete(projectId);
+      const online = await getPresence().leave(projectId, userId);
+      io!.to(`project:${projectId}`).emit(SOCKET_EVENTS.PRESENCE_UPDATE, {
+        projectId,
+        onlineUserIds: online,
       });
+    });
+
+    socket.on("disconnect", async () => {
+      logger.debug("socket disconnected", { socketId: socket.id, userId });
+      // Drop presence for exactly the projects THIS socket joined (other
+      // tabs/instances keep their own ref counts).
+      for (const projectId of joinedProjects) {
+        const online = await getPresence().leave(projectId, userId);
+        io!.to(`project:${projectId}`).emit(SOCKET_EVENTS.PRESENCE_UPDATE, {
+          projectId,
+          onlineUserIds: online,
+        });
+      }
     });
   });
 
@@ -130,6 +155,18 @@ export const emitToUser = (
   event: string,
   payload: unknown
 ) => io?.to(`user:${userId}`).emit(event, payload);
+
+/**
+ * Immediately sever a user's realtime access. Emits SESSION_REVOKED (so the
+ * client can log itself out) and force-disconnects every open socket in the
+ * user's room. Called when a user is deactivated or has their role changed so
+ * already-connected sockets don't retain access until their JWT expires.
+ */
+export const disconnectUser = (userId: string, reason = "revoked") => {
+  if (!io) return;
+  io.to(`user:${userId}`).emit(SOCKET_EVENTS.SESSION_REVOKED, { reason });
+  io.in(`user:${userId}`).disconnectSockets(true);
+};
 
 // ─── Function Summary ──────────────────────────────────────────────────────────
 // initSocket(httpServer)

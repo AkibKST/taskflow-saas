@@ -2,8 +2,16 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { verifyToken } from "../../middleware/verifyToken";
 import { requireRole } from "../../middleware/requireRole";
+import { requireVerifiedEmail } from "../../middleware/requireVerifiedEmail";
 import { ROLES } from "@taskflow/shared";
-import { createInvite, validateInvite, acceptInvite } from "./invite.controller";
+import {
+  createInvite,
+  validateInvite,
+  acceptInvite,
+  listInvites,
+  revokeInvite,
+  resendInvite,
+} from "./invite.controller";
 
 const router = Router();
 
@@ -16,8 +24,17 @@ const inviteAcceptLimiter = rateLimit({
   message: "Too many attempts, try again in 15 minutes",
 });
 
-// POST   /invite               — authenticated OWNER/ADMIN only
-router.post("/", verifyToken, canInvite, createInvite);
+// GET    /invite               — list pending invites (OWNER/ADMIN)
+router.get("/", verifyToken, canInvite, listInvites);
+
+// POST   /invite               — authenticated OWNER/ADMIN with a verified email
+router.post("/", verifyToken, canInvite, requireVerifiedEmail, createInvite);
+
+// POST   /invite/:id/resend    — re-send an existing pending invite
+router.post("/:id/resend", verifyToken, canInvite, requireVerifiedEmail, resendInvite);
+
+// DELETE /invite/:id           — revoke a pending invite
+router.delete("/:id", verifyToken, canInvite, revokeInvite);
 
 // GET    /invite/:token        — public (renders the accept-invite page data)
 router.get("/:token", validateInvite);
@@ -28,7 +45,10 @@ router.post("/:token/accept", inviteAcceptLimiter, acceptInvite);
 export default router;
 
 // ─── Function Summary ──────────────────────────────────────────────────────────
-// POST /               → protected; OWNER or ADMIN sends an invite email
-// GET  /:token         → public; validates invite token before rendering accept form
-// POST /:token/accept  → public + rate-limited; creates user account on acceptance
+// GET    /              → protected; list pending invites for the tenant
+// POST   /              → protected; OWNER/ADMIN (verified) sends an invite
+// POST   /:id/resend    → protected; re-issue token + email for an invite
+// DELETE /:id           → protected; revoke a pending invite
+// GET    /:token        → public; validates invite token for the accept form
+// POST   /:token/accept → public + rate-limited; creates the account
 // ──────────────────────────────────────────────────────────────────────────────

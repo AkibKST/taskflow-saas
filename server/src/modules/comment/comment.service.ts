@@ -1,15 +1,16 @@
 import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
-import { SOCKET_EVENTS, NOTIFICATION_TYPES } from "@taskflow/shared";
+import { SOCKET_EVENTS, NOTIFICATION_TYPES, PAGINATION } from "@taskflow/shared";
 import { emitToProject } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
+import { parseMentions } from "../../utils/mentions";
 import { CreateCommentInput, UpdateCommentInput } from "./comment.model";
 
-// Socket event names for comments (extend SOCKET_EVENTS constants in shared if desired)
+// Socket event names for comments (single source of truth in @taskflow/shared)
 export const COMMENT_EVENTS = {
-  CREATED: "comment:created",
-  UPDATED: "comment:updated",
-  DELETED: "comment:deleted",
+  CREATED: SOCKET_EVENTS.COMMENT_CREATED,
+  UPDATED: SOCKET_EVENTS.COMMENT_UPDATED,
+  DELETED: SOCKET_EVENTS.COMMENT_DELETED,
 } as const;
 
 const assertCommentOwnership = async (
@@ -34,13 +35,18 @@ export const listCommentsService = async (taskId: string, tenantId: string) => {
   });
   if (!task) throw new AppError(404, "Task not found");
 
-  return prisma.comment.findMany({
+  // Return the most recent page of comments in chronological order. Capped so a
+  // hot task can't return an unbounded list; the client can request older pages.
+  const limit = PAGINATION.MAX_LIMIT;
+  const recent = await prisma.comment.findMany({
     where: { taskId, isDeleted: false },
     include: {
       user: { select: { id: true, name: true, email: true } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
+    take: limit,
   });
+  return recent.reverse();
 };
 
 export const createCommentService = async (
@@ -53,6 +59,13 @@ export const createCommentService = async (
     where: { id: taskId, tenantId, isDeleted: false },
     include: {
       assignees: { select: { userId: true } },
+      project: {
+        select: {
+          members: {
+            select: { user: { select: { id: true, name: true, email: true } } },
+          },
+        },
+      },
     },
   });
   if (!task) throw new AppError(404, "Task not found");
@@ -71,22 +84,41 @@ export const createCommentService = async (
 
   emitToProject(task.projectId, COMMENT_EVENTS.CREATED, { taskId, comment });
 
-  // Notify all task assignees (except the commenter)
-  const notifyIds = task.assignees
-    .map((a) => a.userId)
-    .filter((uid) => uid !== userId);
+  const link = `/projects/${task.projectId}/tasks/${taskId}`;
 
-  await Promise.all(
-    notifyIds.map((uid) =>
+  // Resolve @mentions against project members; these get a MENTIONED notice.
+  const projectMembers = task.project.members.map((m) => m.user);
+  const mentionedIds = parseMentions(data.content, projectMembers).filter(
+    (uid) => uid !== userId
+  );
+  const mentioned = new Set(mentionedIds);
+
+  // Assignees (minus the commenter, minus anyone already @mentioned) get a
+  // TASK_COMMENTED notice so mentions aren't doubled up.
+  const commentedIds = task.assignees
+    .map((a) => a.userId)
+    .filter((uid) => uid !== userId && !mentioned.has(uid));
+
+  await Promise.all([
+    ...mentionedIds.map((uid) =>
+      createNotificationService({
+        userId: uid,
+        tenantId,
+        type: NOTIFICATION_TYPES.MENTIONED,
+        message: `${comment.user.name} mentioned you on "${task.title}"`,
+        linkUrl: link,
+      })
+    ),
+    ...commentedIds.map((uid) =>
       createNotificationService({
         userId: uid,
         tenantId,
         type: NOTIFICATION_TYPES.TASK_COMMENTED,
         message: `New comment on "${task.title}"`,
-        linkUrl: `/projects/${task.projectId}/tasks/${taskId}`,
+        linkUrl: link,
       })
-    )
-  );
+    ),
+  ]);
 
   return comment;
 };

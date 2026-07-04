@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
 import { Badge, IconBadge } from "@/components/ui";
+import GlobalSearch from "@/components/layout/GlobalSearch";
 import { btnGhost, cx, roleBadge } from "@/lib/ui";
 
 interface Notification {
@@ -74,7 +75,11 @@ export default function AppHeader() {
     api
       .get<Notification[]>("/notifications")
       .then((res) => {
-        if (active) setUnread(res.data.filter((n) => !n.isRead).length);
+        if (!active) return;
+        // Prefer the server's tenant-wide unread count (meta); fall back to
+        // counting the returned page if meta is absent.
+        const meta = (res as { meta?: { unread?: number } }).meta;
+        setUnread(meta?.unread ?? res.data.filter((n) => !n.isRead).length);
       })
       .catch(() => {});
     return () => {
@@ -146,6 +151,7 @@ export default function AppHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <GlobalSearch />
           <Link
             href="/notifications"
             className="relative text-gray-400 transition-colors hover:text-gray-600"

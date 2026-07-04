@@ -14,6 +14,14 @@ interface TenantUser {
   role: string;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  invitedBy?: { name: string };
+}
+
 const ROLE_VALUES = [ROLES.MEMBER, ROLES.MANAGER, ROLES.ADMIN];
 
 export default function TeamPage() {
@@ -22,12 +30,24 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  // Invite form state
+  // Invite form + pending-invite state
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>(ROLES.MEMBER);
   const [inviting, setInviting] = useState(false);
   const [inviteMsg, setInviteMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [pending, setPending] = useState<PendingInvite[]>([]);
+
+  const currentRole = (user?.role ?? "MEMBER").toUpperCase();
+  const canInvite = currentRole === "OWNER" || currentRole === "ADMIN";
+
+  const loadInvites = () => {
+    if (!canInvite) return;
+    api
+      .get<PendingInvite[]>("/invite")
+      .then((res) => setPending(res.data))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     let active = true;
@@ -36,8 +56,29 @@ export default function TeamPage() {
       .then((res) => active && setMembers(res.data))
       .catch(() => {})
       .finally(() => active && setLoading(false));
+    loadInvites();
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleRevoke = async (id: string) => {
+    try {
+      await api.delete(`/invite/${id}`);
+      setPending((p) => p.filter((i) => i.id !== id));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleResend = async (id: string) => {
+    try {
+      await api.post(`/invite/${id}/resend`);
+      setInviteMsg({ type: "ok", text: "Invite re-sent" });
+      loadInvites();
+    } catch (err: any) {
+      setInviteMsg({ type: "err", text: err.message || "Failed to resend" });
+    }
+  };
 
   const filtered = members.filter(
     (m) =>
@@ -50,9 +91,6 @@ export default function TeamPage() {
     (a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role),
   );
 
-  const currentRole = (user?.role ?? "MEMBER").toUpperCase();
-  const canInvite = currentRole === "OWNER" || currentRole === "ADMIN";
-
   const handleInvite = async (e: FormEvent) => {
     e.preventDefault();
     setInviting(true);
@@ -62,6 +100,7 @@ export default function TeamPage() {
       setInviteMsg({ type: "ok", text: `Invite sent to ${inviteEmail}` });
       setInviteEmail("");
       setInviteRole(ROLES.MEMBER);
+      loadInvites();
     } catch (err: any) {
       setInviteMsg({ type: "err", text: err.message || "Failed to send invite" });
     } finally {
@@ -132,6 +171,41 @@ export default function TeamPage() {
                 {inviteMsg.text}
               </p>
             )}
+          </Card>
+        )}
+
+        {/* Pending invites */}
+        {canInvite && pending.length > 0 && (
+          <Card className="mb-6">
+            <SectionHeader title={`Pending invites (${pending.length})`} />
+            <ul className="mt-2 divide-y divide-gray-100">
+              {pending.map((inv) => (
+                <li key={inv.id} className="flex items-center gap-3 py-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-sm">
+                    ✉️
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-800">{inv.email}</p>
+                    <p className="truncate text-xs text-gray-400">
+                      Invited as {inv.role} · expires{" "}
+                      {new Date(inv.expiresAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleResend(inv.id)}
+                    className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Resend
+                  </button>
+                  <button
+                    onClick={() => handleRevoke(inv.id)}
+                    className="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
           </Card>
         )}
 

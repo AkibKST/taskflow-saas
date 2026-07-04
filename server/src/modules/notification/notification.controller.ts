@@ -10,15 +10,22 @@ import {
 
 export const listNotifications = catchAsync(
   async (req: Request, res: Response) => {
-    const notifications = await listNotificationsService(
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+    const result = await listNotificationsService(
       req.user.userId,
-      req.user.tenantId
+      req.user.tenantId,
+      { page, limit }
     );
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
       message: "Notifications fetched",
-      data: notifications,
+      // `data` stays the array for client compatibility; pagination + unread
+      // count travel in `meta`.
+      data: result.items,
+      meta: { ...result.pagination, unread: result.unread },
     });
   }
 );

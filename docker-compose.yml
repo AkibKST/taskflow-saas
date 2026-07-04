@@ -1,0 +1,84 @@
+# Local/production-like orchestration for TaskFlow.
+#
+# NOTE ON THE DATABASE: the server uses the Neon serverless driver
+# (@prisma/adapter-neon), so DATABASE_URL / DIRECT_URL must point at a Neon
+# database (or a Neon-compatible endpoint). This compose file therefore does NOT
+# bundle Postgres — set the DB URLs in a root `.env` before `docker compose up`.
+#
+#   docker compose build
+#   docker compose run --rm migrate     # apply migrations (release step)
+#   docker compose up -d
+#
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  # One-shot release step: applies pending Prisma migrations. Run before `up`
+  # (and on each deploy) so schema changes reach the database exactly once,
+  # rather than racing across server replicas at boot.
+  migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: build
+    working_dir: /app/server
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+    profiles: ["tools"]
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      TRUST_PROXY: "1"
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      REDIS_URL: redis://redis:6379
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-TaskFlow <no-reply@taskflow.local>}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    depends_on:
+      - redis
+    volumes:
+      - uploads:/app/server/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5000/api/v1}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:5000}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+
+volumes:
+  redis-data:
+  uploads:

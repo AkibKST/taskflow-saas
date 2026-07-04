@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../../middleware/requireRole";
+import { requireProjectWriter } from "../../middleware/requireProjectWriter";
 import { ROLES } from "@taskflow/shared";
 import {
   listComments,
@@ -11,12 +12,11 @@ import {
 // mergeParams gives access to :taskId from the parent task/project router
 const router = Router({ mergeParams: true });
 
-const canWrite = requireRole(
-  ROLES.OWNER,
-  ROLES.ADMIN,
-  ROLES.MANAGER,
-  ROLES.MEMBER
-);
+// Commenting requires a writable org role AND a non-VIEWER project role.
+const canWrite = [
+  requireRole(ROLES.OWNER, ROLES.ADMIN, ROLES.MANAGER, ROLES.MEMBER),
+  requireProjectWriter,
+];
 
 // Note: requireProjectMember is applied upstream in project.route.ts
 router.get("/", listComments);

@@ -2,64 +2,77 @@ import http from "http";
 import app from "./app";
 import { initSocket } from "./socket";
 import { prisma } from "./config/prisma";
+import { logger } from "./utils/logger";
+import { withJobLock } from "./utils/jobLock";
+import { initObservability, captureException } from "./utils/observability";
 import { pruneRefreshTokens } from "./jobs/pruneRefreshTokens";
 import { pruneAuthTokens } from "./jobs/pruneAuthTokens";
 import { hardDeleteSoftDeleted } from "./jobs/hardDeleteSoftDeleted";
+import { notifyDueSoon } from "./jobs/notifyDueSoon";
+import { expireEndedSubscriptions } from "./modules/billing/billing.service";
 import "dotenv/config";
 
 const PORT = process.env.PORT || 5000;
+
+initObservability();
 
 const httpServer = http.createServer(app);
 
 // Jobs interval handles (stored for cleanup on shutdown)
 const jobIntervals: NodeJS.Timeout[] = [];
 
+const HOUR = 60 * 60 * 1000;
+
+/**
+ * Register a maintenance job: runs shortly after boot and then on an interval.
+ * Every run is guarded by a cluster-wide advisory lock so that with 2+ instances
+ * the job executes once, not once per instance.
+ */
+const scheduleJob = (
+  name: string,
+  everyMs: number,
+  fn: () => Promise<unknown>,
+  startDelayMs = 30 * 1000
+) => {
+  const run = async () => {
+    try {
+      await withJobLock(name, async () => {
+        await fn();
+      });
+    } catch (e) {
+      captureException(e, { job: name });
+    }
+  };
+  setTimeout(run, startDelayMs); // run once shortly after boot
+  jobIntervals.push(setInterval(run, everyMs));
+};
+
 const startServer = async () => {
   try {
     await prisma.$connect();
-    console.log("✅ Database connected successfully");
+    logger.info("Database connected successfully");
   } catch (error) {
-    console.error("❌ Database connection failed:", error);
+    logger.error("Database connection failed", { err: String(error) });
     process.exit(1);
   }
 
   await initSocket(httpServer);
 
   httpServer.listen(PORT, () => {
-    console.log(`🚀 Server running → http://localhost:${PORT}`);
-    console.log(`🏥 Liveness  → http://localhost:${PORT}/health`);
-    console.log(`🏥 Readiness → http://localhost:${PORT}/health/ready`);
+    logger.info(`Server running on http://localhost:${PORT}`);
   });
 
-  // Scheduled maintenance jobs
-  // Prune expired/revoked refresh tokens every 6 hours
-  jobIntervals.push(
-    setInterval(async () => {
-      try { await pruneRefreshTokens(); }
-      catch (e) { console.error("[JOBS] pruneRefreshTokens failed:", e); }
-    }, 6 * 60 * 60 * 1000)
-  );
-
-  // Prune expired/used password-reset & email-verification tokens every 6 hours
-  jobIntervals.push(
-    setInterval(async () => {
-      try { await pruneAuthTokens(); }
-      catch (e) { console.error("[JOBS] pruneAuthTokens failed:", e); }
-    }, 6 * 60 * 60 * 1000)
-  );
-
-  // Hard-delete soft-deleted records older than 30 days, once per day
-  jobIntervals.push(
-    setInterval(async () => {
-      try { await hardDeleteSoftDeleted(); }
-      catch (e) { console.error("[JOBS] hardDeleteSoftDeleted failed:", e); }
-    }, 24 * 60 * 60 * 1000)
-  );
+  // ── Scheduled maintenance jobs (distributed-lock guarded) ──
+  scheduleJob("pruneRefreshTokens", 6 * HOUR, pruneRefreshTokens);
+  scheduleJob("pruneAuthTokens", 6 * HOUR, pruneAuthTokens);
+  scheduleJob("hardDeleteSoftDeleted", 24 * HOUR, hardDeleteSoftDeleted);
+  scheduleJob("notifyDueSoon", 1 * HOUR, notifyDueSoon);
+  scheduleJob("expireEndedSubscriptions", 6 * HOUR, expireEndedSubscriptions);
 };
 
 // Graceful shutdown — drain open connections before exiting
 const shutdown = async (signal: string) => {
-  console.log(`\n⚙️  ${signal} received — shutting down gracefully…`);
+  logger.info(`${signal} received — shutting down gracefully`);
 
   jobIntervals.forEach(clearInterval);
 
@@ -68,21 +81,15 @@ const shutdown = async (signal: string) => {
   });
 
   await prisma.$disconnect();
-  console.log("👋 Server shut down cleanly");
+  logger.info("Server shut down cleanly");
   process.exit(0);
 };
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-startServer();
+process.on("unhandledRejection", (reason) =>
+  captureException(reason, { kind: "unhandledRejection" })
+);
 
-// ─── Function Summary ──────────────────────────────────────────────────────────
-// startServer()  → connects DB, inits Socket.IO, starts HTTP server, registers cron jobs
-// shutdown(signal) → clears job intervals, closes HTTP server, disconnects Prisma, exits 0
-//
-// Scheduled jobs (registered in startServer):
-//   pruneRefreshTokens   — every 6 hours: deletes expired/revoked tokens
-//   pruneAuthTokens      — every 6 hours: deletes expired/used reset & verify tokens
-//   hardDeleteSoftDeleted — every 24 hours: hard-deletes records past 30-day retention
-// ──────────────────────────────────────────────────────────────────────────────
+startServer();

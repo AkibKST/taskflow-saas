@@ -1,6 +1,9 @@
 import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
 import { ROLES } from "@taskflow/shared";
+import { disconnectUser } from "../../socket";
+import { assertSeatAvailable } from "../../utils/entitlements";
+import { writeAudit, AUDIT } from "../../utils/audit";
 
 // Active users in the caller's tenant — used to populate member pickers, etc.
 export const listUsersService = async (tenantId: string) => {
@@ -89,11 +92,27 @@ export const updateUserRoleService = async (
     await assertNotLastOwner(actor.tenantId, targetId);
   }
 
-  return prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: targetId },
     data: { role: newRole as never },
     select: MANAGED_SELECT,
   });
+
+  // Sever live sockets so the new role is picked up on reconnect rather than
+  // lagging until the JWT expires. (verifyToken re-reads the DB role per request.)
+  if (target.role !== newRole) {
+    disconnectUser(targetId, "role-changed");
+    await writeAudit({
+      tenantId: actor.tenantId,
+      actorId: actor.userId,
+      action: AUDIT.USER_ROLE_CHANGED,
+      targetType: "user",
+      targetId: targetId,
+      metadata: { from: target.role, to: newRole },
+    });
+  }
+
+  return updated;
 };
 
 export const setUserActiveService = async (
@@ -113,19 +132,35 @@ export const setUserActiveService = async (
     await assertNotLastOwner(actor.tenantId, targetId);
   }
 
+  // Reactivating consumes a seat — enforce the plan limit (skip if already active).
+  if (isActive && !target.isActive) {
+    await assertSeatAvailable(actor.tenantId, 1);
+  }
+
   const user = await prisma.user.update({
     where: { id: targetId },
     data: { isActive },
     select: MANAGED_SELECT,
   });
 
-  // Revoke sessions when deactivating so access ends immediately.
+  // Revoke sessions when deactivating so access ends immediately: kill refresh
+  // tokens AND force-disconnect any live sockets. (verifyToken also rejects
+  // inactive users, so any still-valid access token stops working at once.)
   if (!isActive) {
     await prisma.refreshToken.updateMany({
       where: { userId: targetId, isRevoked: false },
       data: { isRevoked: true },
     });
+    disconnectUser(targetId, "deactivated");
   }
+
+  await writeAudit({
+    tenantId: actor.tenantId,
+    actorId: actor.userId,
+    action: isActive ? AUDIT.USER_REACTIVATED : AUDIT.USER_DEACTIVATED,
+    targetType: "user",
+    targetId: targetId,
+  });
 
   return user;
 };

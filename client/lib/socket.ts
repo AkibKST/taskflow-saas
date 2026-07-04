@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import { SOCKET_EVENTS } from "@taskflow/shared";
 import { useAuthStore } from "@/store/authStore";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
@@ -14,6 +15,14 @@ export const getSocket = (): Socket => {
     auth: { token: accessToken },
     transports: ["websocket", "polling"],
     autoConnect: true,
+  });
+
+  // The server severs realtime access when the account is deactivated or its
+  // role changes — log out immediately rather than lingering with stale access.
+  socket.on(SOCKET_EVENTS.SESSION_REVOKED, () => {
+    useAuthStore.getState().clearAuth();
+    disconnectSocket();
+    if (typeof window !== "undefined") window.location.href = "/login";
   });
 
   return socket;

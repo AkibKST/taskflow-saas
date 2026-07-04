@@ -20,6 +20,7 @@ model Tenant {
   notifications Notification[]
   inviteTokens InviteToken[]
   subscription Subscription?
+  auditLogs    AuditLog[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -44,6 +45,8 @@ model User {
   comments       Comment[]
   notifications  Notification[]
   sentInvites    InviteToken[]   @relation("SentInvites")
+  taskActivities TaskActivity[]
+  uploadedAttachments Attachment[] @relation("UploadedAttachments")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -130,10 +133,14 @@ model Task {
   status       TaskStatus     @default(TODO)
   priority     Priority       @default(MEDIUM)
   dueDate      DateTime?
+  // Set once a DUE_SOON reminder has been sent so the job doesn't re-notify.
+  dueReminderSentAt DateTime?
   order        Int            @default(0)
   isDeleted    Boolean        @default(false)
   assignees    TaskAssignee[]
   comments     Comment[]
+  activities   TaskActivity[]
+  attachments  Attachment[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -258,6 +265,57 @@ model Invoice {
   createdAt      DateTime      @default(now())
 
   @@index([subscriptionId, createdAt])
+}
+
+// Immutable log of task changes (status/assignee/priority/etc.) — powers the
+// "who changed what, when" activity feed on a task.
+model TaskActivity {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  type      String
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+// File attached to a task. Bytes live in object storage (S3/local); this row is
+// the metadata + storage key.
+model Attachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tenantId     String
+  uploadedById String
+  uploadedBy   User     @relation("UploadedAttachments", fields: [uploadedById], references: [id])
+  filename     String
+  contentType  String
+  sizeBytes    Int
+  storageKey   String
+  createdAt    DateTime @default(now())
+
+  @@index([taskId])
+  @@index([tenantId])
+}
+
+// Append-only audit trail of security-relevant events (role changes, plan
+// changes, deactivations, deletions) for compliance and incident response.
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorId    String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
 }
 
 // ── ENUMS ──

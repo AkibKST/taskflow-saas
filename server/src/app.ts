@@ -3,9 +3,12 @@ import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-import rateLimit from "express-rate-limit";
+import rateLimit, { Store } from "express-rate-limit";
 import { globalErrorHandler } from "./middleware/globalErrorHandler";
+import { requestId } from "./middleware/requestId";
 import { sendResponse } from "./utils/sendResponse";
+import { logger } from "./utils/logger";
+import { envVars, isProd } from "./config/env";
 import httpStatus from "http-status-codes";
 import { prisma } from "./config/prisma";
 import authRoutes from "./modules/auth/auth.route";
@@ -15,8 +18,22 @@ import userRoutes from "./modules/users/user.route";
 import inviteRoutes from "./modules/invite/invite.route";
 import settingsRoutes from "./modules/settings/settings.route";
 import billingRoutes from "./modules/billing/billing.route";
+import { stripeWebhookRouter } from "./modules/billing/billing.webhook";
+import searchRoutes from "./modules/search/search.route";
+import accountRoutes from "./modules/account/account.route";
 
 const app = express();
+
+// Behind a load balancer / reverse proxy, express must trust the proxy so that
+// `req.ip` (used by the rate limiter) and `secure` protocol detection are based
+// on X-Forwarded-* headers rather than the proxy's own address. Configurable so
+// operators can set an exact hop count; defaults to a single hop in production.
+if (envVars.TRUST_PROXY !== undefined) {
+  const v = envVars.TRUST_PROXY;
+  app.set("trust proxy", v === "true" ? true : v === "false" ? false : isNaN(Number(v)) ? v : Number(v));
+} else if (isProd) {
+  app.set("trust proxy", 1);
+}
 
 // Security headers + custom Content-Security-Policy
 app.use(
@@ -37,26 +54,21 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: envVars.CLIENT_URL,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   })
 );
 
-// Structured JSON request logging in production; human-readable in dev
-if (process.env.NODE_ENV === "production") {
+app.use(requestId);
+
+// Structured JSON request logging in production; human-readable in dev.
+if (isProd) {
   app.use(
     morgan("combined", {
       stream: {
         write: (message: string) =>
-          process.stdout.write(
-            JSON.stringify({
-              level: "info",
-              type: "http",
-              message: message.trim(),
-              time: new Date().toISOString(),
-            }) + "\n"
-          ),
+          logger.info("http", { line: message.trim() }),
       },
     })
   );
@@ -64,11 +76,56 @@ if (process.env.NODE_ENV === "production") {
   app.use(morgan("dev"));
 }
 
-app.use(express.json({ limit: "10mb" }));
+// Stripe webhooks need the raw request body to verify the signature, so this
+// router is mounted BEFORE express.json() and applies express.raw() itself.
+app.use("/api/v1/billing/webhook", stripeWebhookRouter);
+
+// The largest legitimate payload is a comment or task description; a 10mb limit
+// was a needless DoS surface. Configurable via JSON_BODY_LIMIT (default 256kb).
+app.use(express.json({ limit: envVars.JSON_BODY_LIMIT }));
 app.use(cookieParser());
 
+/**
+ * Build a rate-limit store. In-memory by default (fine single-instance), but
+ * backed by Redis when REDIS_URL is set so limits are shared across instances
+ * and survive deploys. Uses lazy require so `rate-limit-redis`/`redis` remain
+ * optional dependencies — falls back to memory if they aren't installed.
+ */
+const buildRateLimitStore = (): Store | undefined => {
+  if (!envVars.REDIS_URL) return undefined;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { RedisStore } = require("rate-limit-redis");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { createClient } = require("redis");
+    const client = createClient({ url: envVars.REDIS_URL });
+    client.connect().catch((e: unknown) =>
+      logger.error("rate-limit redis connect failed", { err: String(e) })
+    );
+    logger.info("Rate-limit store: Redis (shared across instances)");
+    return new RedisStore({
+      sendCommand: (...args: string[]) => client.sendCommand(args),
+    });
+  } catch {
+    logger.warn(
+      "REDIS_URL set but rate-limit-redis/redis not installed — using in-memory rate limiter"
+    );
+    return undefined;
+  }
+};
+
+const rateLimitStore = buildRateLimitStore();
+
 // Global rate limiter
-app.use(rateLimit({ windowMs: 60 * 1000, max: 100 }));
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: rateLimitStore,
+  })
+);
 
 // Welcome
 app.get("/", (_req, res) => {
@@ -103,6 +160,8 @@ app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/settings", settingsRoutes);
 app.use("/api/v1/billing", billingRoutes);
+app.use("/api/v1/search", searchRoutes);
+app.use("/api/v1/account", accountRoutes);
 
 // 404 handler
 app.use((_req, res) =>
@@ -113,24 +172,3 @@ app.use((_req, res) =>
 app.use(globalErrorHandler);
 
 export default app;
-
-// ─── Function Summary ──────────────────────────────────────────────────────────
-// app (Express instance)
-//   → mounts all middleware in order: helmet (CSP) → cors → morgan → json → cookie
-//     → rate-limit → routes → 404 → globalErrorHandler
-//
-// GET  /                → welcome message
-// GET  /health          → liveness check (process is running)
-// GET  /health/ready    → readiness check (process + DB connection verified)
-//
-// Mounted routers:
-//   /api/v1/auth                          → authRoutes
-//   /api/v1/invite                        → inviteRoutes
-//   /api/v1/projects                      → projectRoutes
-//     /:projectId/tasks                   → taskRoutes (nested)
-//       /:taskId/comments                 → commentRoutes (nested inside tasks)
-//   /api/v1/notifications                 → notificationRoutes
-//   /api/v1/users                         → userRoutes
-//   /api/v1/settings                      → settingsRoutes (notifications, workspace)
-//   /api/v1/billing                       → billingRoutes (subscription, invoices)
-// ──────────────────────────────────────────────────────────────────────────────

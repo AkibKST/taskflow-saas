@@ -2,7 +2,12 @@
   "name": "@taskflow/shared",
   "version": "1.0.0",
   "description": "Shared constants, enums and socket event names — single source of truth for server and client",
-  "main": "index.ts",
-  "types": "index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": ["dist", "index.ts"],
   "license": "ISC"
 }

@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import AppError from "../../utils/AppError";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 import { emitToProject } from "../../socket";
+import { Pagination } from "../../utils/pagination";
 import {
   CreateProjectInput,
   UpdateProjectInput,
@@ -16,15 +17,25 @@ const assertProjectInTenant = async (projectId: string, tenantId: string) => {
   return project;
 };
 
-export const listProjectsService = async (tenantId: string) => {
-  return prisma.project.findMany({
-    where: { tenantId, isDeleted: false },
-    include: {
-      members: { include: { user: { select: { id: true, name: true, email: true } } } },
-      _count: { select: { tasks: { where: { isDeleted: false } } } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+export const listProjectsService = async (
+  tenantId: string,
+  pagination: Pagination
+) => {
+  const where = { tenantId, isDeleted: false };
+  const [items, total] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      include: {
+        members: { include: { user: { select: { id: true, name: true, email: true } } } },
+        _count: { select: { tasks: { where: { isDeleted: false } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: pagination.skip,
+      take: pagination.limit,
+    }),
+    prisma.project.count({ where }),
+  ]);
+  return { items, total };
 };
 
 export const getProjectService = async (projectId: string, tenantId: string) => {

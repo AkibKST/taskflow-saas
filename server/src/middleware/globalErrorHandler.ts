@@ -8,6 +8,7 @@ import { handlerZodError } from "../helpers/handlerZodError";
 import AppError from "../utils/AppError";
 import { TErrorSources } from "../types/error.types";
 import { envVars } from "../config/env";
+import { captureException } from "../utils/observability";
 
 export const globalErrorHandler = (
   err: any,
@@ -51,10 +52,18 @@ export const globalErrorHandler = (
     message = err.message;
   }
 
+  // Report unexpected (5xx) errors to the error tracker with the request id so a
+  // user's report can be correlated to a specific failure. Expected 4xx
+  // AppErrors are not reported (they're normal control flow).
+  if (statusCode >= 500) {
+    captureException(err, { requestId: (req as any).id, path: req.originalUrl });
+  }
+
   res.status(statusCode).json({
     success: false,
     message,
     errorSources,
+    requestId: (req as any).id,
     err: envVars.NODE_ENV === "development" ? err : null,
     stack: envVars.NODE_ENV === "development" ? err.stack : null,
   });

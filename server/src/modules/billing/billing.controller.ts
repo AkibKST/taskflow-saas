@@ -21,7 +21,11 @@ export const getBilling = catchAsync(async (req, res) => {
 
 export const changePlan = catchAsync(async (req, res) => {
   const { plan } = changePlanSchema.parse(req.body);
-  const data = await changePlanService(req.user!.tenantId, plan as SubscriptionPlan);
+  const data = await changePlanService(
+    req.user!.tenantId,
+    plan as SubscriptionPlan,
+    req.user!.userId
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -31,7 +35,7 @@ export const changePlan = catchAsync(async (req, res) => {
 });
 
 export const cancelSubscription = catchAsync(async (req, res) => {
-  const data = await cancelSubscriptionService(req.user!.tenantId);
+  const data = await cancelSubscriptionService(req.user!.tenantId, req.user!.userId);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

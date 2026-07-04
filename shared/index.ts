@@ -158,8 +158,15 @@ export const SOCKET_EVENTS = Object.freeze({
   TASK_DELETED: "task:deleted",
   // Projects
   PROJECT_UPDATED: "project:updated",
+  // Comments
+  COMMENT_CREATED: "comment:created",
+  COMMENT_UPDATED: "comment:updated",
+  COMMENT_DELETED: "comment:deleted",
   // Notifications
   NOTIFICATION_NEW: "notification:new",
+  // Session lifecycle — emitted to a user's room when their access is revoked
+  // (deactivated / role changed) so connected clients log out immediately.
+  SESSION_REVOKED: "session:revoked",
 } as const);
 
 export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];

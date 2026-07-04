@@ -7,6 +7,9 @@ import {
   createInviteService,
   validateInviteService,
   acceptInviteService,
+  listInvitesService,
+  revokeInviteService,
+  resendInviteService,
 } from "./invite.service";
 
 const COOKIE_OPTIONS = {
@@ -23,6 +26,36 @@ export const createInvite = catchAsync(async (req: Request, res: Response) => {
     statusCode: httpStatus.CREATED,
     success: true,
     message: "Invite sent successfully",
+    data: invite,
+  });
+});
+
+export const listInvites = catchAsync(async (req: Request, res: Response) => {
+  const invites = await listInvitesService(req.user.tenantId);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Pending invites",
+    data: invites,
+  });
+});
+
+export const revokeInvite = catchAsync(async (req: Request, res: Response) => {
+  await revokeInviteService(req.user.tenantId, String(req.params.id));
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Invite revoked",
+    data: null,
+  });
+});
+
+export const resendInvite = catchAsync(async (req: Request, res: Response) => {
+  const invite = await resendInviteService(req.user.tenantId, String(req.params.id));
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Invite re-sent",
     data: invite,
   });
 });

@@ -187,12 +187,24 @@ export const refreshService = async (oldToken: string) => {
   return newTokens;
 };
 
-// Update own profile (name / email)
+// Update own profile (name / email). Changing the email is a sensitive action:
+// it requires the current password, marks the account unverified again, and
+// re-issues a verification email to the new address.
 export const updateProfileService = async (
   userId: string,
   data: UpdateProfileInput
 ) => {
-  if (data.email) {
+  const current = await prisma.user.findUnique({ where: { id: userId } });
+  if (!current) throw new AppError(404, "User not found");
+
+  const emailChanging =
+    data.email !== undefined && data.email !== current.email;
+
+  if (emailChanging) {
+    const ok = await bcrypt.compare(data.currentPassword ?? "", current.passwordHash);
+    if (!ok) throw new AppError(400, "Current password is incorrect");
+
+    // Global email identity — an email maps to one account across all tenants.
     const existing = await prisma.user.findFirst({
       where: { email: data.email, NOT: { id: userId } },
     });
@@ -203,10 +215,19 @@ export const updateProfileService = async (
     where: { id: userId },
     data: {
       ...(data.name !== undefined && { name: data.name }),
-      ...(data.email !== undefined && { email: data.email }),
+      ...(emailChanging && {
+        email: data.email,
+        emailVerifiedAt: null,
+      }),
     },
     select: PROFILE_SELECT,
   });
+
+  if (emailChanging) {
+    await issueEmailVerification(userId, data.email!).catch((e) =>
+      console.error("[AUTH] re-verification after email change failed:", e)
+    );
+  }
 
   return user;
 };
@@ -249,7 +270,10 @@ export const forgotPasswordService = async (email: string) => {
   });
 
   const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
-  await sendPasswordResetEmail({ to: user.email, resetUrl });
+  // Best-effort: a delivery failure must not reveal whether the email exists.
+  await sendPasswordResetEmail({ to: user.email, resetUrl }).catch((e) =>
+    console.error("[AUTH] sendPasswordResetEmail failed:", e)
+  );
 };
 
 // Reset password — consume a valid token, set the new password, and revoke all

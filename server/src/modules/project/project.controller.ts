@@ -16,10 +16,18 @@ import {
   addMemberService,
   removeMemberService,
 } from "./project.service";
+import { parsePagination, buildMeta } from "../../utils/pagination";
 
 export const listProjects = catchAsync(async (req: Request, res: Response) => {
-  const projects = await listProjectsService(req.user.tenantId);
-  sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Projects fetched", data: projects });
+  const pagination = parsePagination(req.query);
+  const { items, total } = await listProjectsService(req.user.tenantId, pagination);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Projects fetched",
+    data: items,
+    meta: buildMeta(total, pagination),
+  });
 });
 
 export const getProject = catchAsync(async (req: Request, res: Response) => {
