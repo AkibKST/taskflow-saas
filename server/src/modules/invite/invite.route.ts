@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import { verifyToken } from "../../middleware/verifyToken";
 import { requireRole } from "../../middleware/requireRole";
 import { requireVerifiedEmail } from "../../middleware/requireVerifiedEmail";
+import { isTest } from "../../config/env";
 import { ROLES } from "@taskflow/shared";
 import {
   createInvite,
@@ -22,6 +23,7 @@ const inviteAcceptLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: "Too many attempts, try again in 15 minutes",
+  skip: () => isTest,
 });
 
 // GET    /invite               — list pending invites (OWNER/ADMIN)

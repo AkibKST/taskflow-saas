@@ -25,6 +25,25 @@ jobs:
   build-and-test:
     name: Typecheck · Test · Build
     runs-on: ubuntu-latest
+
+    # Real Postgres for the integration suite. The app connects via the
+    # node-postgres driver here (DATABASE_DRIVER auto-selects "pg" for
+    # localhost URLs); production keeps the Neon serverless driver.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: taskflow_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -52,6 +71,14 @@ jobs:
 
       - name: Server unit tests
         run: npm run test --workspace server
+
+      # Full HTTP-level suite against the real database: auth flows, tenant
+      # isolation, RBAC, invite lifecycle, health/hardening. Applies the
+      # committed migrations first, so it also proves a fresh deploy works.
+      - name: Server integration tests
+        run: npm run test:integration --workspace server
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/taskflow_test
 
       - name: Client typecheck
         run: npx tsc --noEmit

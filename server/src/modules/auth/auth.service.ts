@@ -37,8 +37,13 @@ const generateTokens = (payload: TokenPayload) => {
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET!, {
     expiresIn: (process.env.JWT_EXPIRES_IN ?? "15m") as jwt.SignOptions["expiresIn"],
   });
+  // jti makes every refresh token unique. Without it, two tokens signed in the
+  // same second for the same user are byte-identical (iat has 1s resolution),
+  // which violates RefreshToken.token's unique constraint — e.g. a double-click
+  // login, or a refresh arriving within a second of the login that issued it.
   const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, {
     expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? "7d") as jwt.SignOptions["expiresIn"],
+    jwtid: crypto.randomUUID(),
   });
   return { accessToken, refreshToken };
 };

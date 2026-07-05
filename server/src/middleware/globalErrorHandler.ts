@@ -47,6 +47,16 @@ export const globalErrorHandler = (
   } else if (err instanceof AppError) {
     statusCode = err.statusCode;
     message = err.message;
+  } else if (
+    typeof err.statusCode === "number" &&
+    err.statusCode >= 400 &&
+    err.statusCode < 500 &&
+    err.expose === true
+  ) {
+    // http-errors thrown by Express itself (body-parser's 413 "entity too
+    // large", 400 malformed JSON, ...) — client errors, not server faults.
+    statusCode = err.statusCode;
+    message = err.message;
   } else if (err instanceof Error) {
     statusCode = 500;
     message = err.message;

@@ -14,6 +14,7 @@ import {
   resendVerification,
 } from "./auth.controller";
 import { verifyToken } from "../../middleware/verifyToken";
+import { isTest } from "../../config/env";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ const authLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
   message: "Too many attempts, try again in 1 minute",
+  skip: () => isTest,
 });
 
 router.post("/register", authLimiter, register);

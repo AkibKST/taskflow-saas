@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Integration tests need a real database — run via vitest.integration.config.ts
+    exclude: ["**/node_modules/**", "src/test/integration/**"],
     // Dummy values so modules that eagerly load config/env don't throw during
     // unit tests. Integration tests that need a real DB set their own env.
     env: {

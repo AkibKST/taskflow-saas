@@ -8,7 +8,7 @@ import { globalErrorHandler } from "./middleware/globalErrorHandler";
 import { requestId } from "./middleware/requestId";
 import { sendResponse } from "./utils/sendResponse";
 import { logger } from "./utils/logger";
-import { envVars, isProd } from "./config/env";
+import { envVars, isProd, isTest } from "./config/env";
 import httpStatus from "http-status-codes";
 import { prisma } from "./config/prisma";
 import authRoutes from "./modules/auth/auth.route";
@@ -116,7 +116,7 @@ const buildRateLimitStore = (): Store | undefined => {
 
 const rateLimitStore = buildRateLimitStore();
 
-// Global rate limiter
+// Global rate limiter (skipped under test — suites would trip it instantly)
 app.use(
   rateLimit({
     windowMs: 60 * 1000,
@@ -124,6 +124,7 @@ app.use(
     standardHeaders: true,
     legacyHeaders: false,
     store: rateLimitStore,
+    skip: () => isTest,
   })
 );
 
