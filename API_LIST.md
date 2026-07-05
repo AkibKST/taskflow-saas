@@ -30,8 +30,8 @@ Roles legend — `canManage` = OWNER/ADMIN/MANAGER · `canWrite` = OWNER/ADMIN/M
 |--------|------|:----:|-------------|
 | POST | `/register` | 🔓 (5/min) | Create org (tenant) + owner account |
 | POST | `/login` | 🔓 (5/min) | Sign in, returns access token + sets refresh cookie |
-| POST | `/refresh` | 🔓 (5/min) | **Rotate** refresh token pair; sets new refresh cookie |
-| POST | `/logout` | ✅ | Revoke refresh token |
+| POST | `/refresh` | 🔓 (5/min) + CSRF | **Rotate** refresh token pair; sets new refresh cookie |
+| POST | `/logout` | ✅ + CSRF | Revoke refresh token |
 | GET | `/me` | ✅ | Current authenticated user |
 | PATCH | `/me` | ✅ | Update own profile (name / email) |
 | PATCH | `/me/password` | ✅ | Change own password (verifies current password) |
@@ -50,10 +50,18 @@ Roles legend — `canManage` = OWNER/ADMIN/MANAGER · `canWrite` = OWNER/ADMIN/M
 ```json
 { "email": "jane@acme.com", "password": "Secret123" }
 ```
+Per-account lockout on top of the per-IP rate limit: 10 consecutive failed
+attempts lock the account for 15 minutes (`429`), recorded in the audit log
+as `auth.login_locked`.
 
 **POST `/refresh`** — no body; uses `refreshToken` httpOnly cookie.
 Returns `{ accessToken }` and sets a **new rotated** `refreshToken` cookie.
 Replayed revoked tokens trigger full token-family revocation (reuse detection).
+
+**CSRF (double-submit):** login/register/refresh also set a readable `csrfToken`
+cookie. `/refresh` and `/logout` require its value echoed in an `X-CSRF-Token`
+header and respond `403` otherwise — a cross-site request can send the cookie
+but cannot read it to forge the header.
 
 **PATCH `/me`** — partial; at least one field required. Returns the updated user.
 ```json
@@ -226,6 +234,21 @@ Returns `{ accessToken, user, tenant }` and sets `refreshToken` cookie (user is 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
 | GET | `/` | ✅ | List all active users in the current tenant |
+
+---
+
+## 7b. Dashboard — `/api/v1/dashboard`
+
+| Method | Path | Auth | Description |
+|--------|------|:----:|-------------|
+| GET | `/summary` | ✅ | Aggregates for the dashboard page |
+
+Always returns the caller's sections: `myTasks` (up to 8 open assigned tasks,
+due-date first), `recentProjects` (5 most recently updated they belong to),
+`unreadNotifications`, and `tasksByStatus`. For **OWNER/ADMIN** callers it adds
+tenant-wide `totalUsers`, `activeUsers`, `totalProjects`, `totalTasks`, and
+`team` (first 8 active members). Non-admin `tasksByStatus` counts only tasks
+in the caller's projects.
 
 ---
 

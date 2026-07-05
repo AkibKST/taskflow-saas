@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { DndContext } from "@dnd-kit/core";
 import { KanbanColumn } from "../KanbanColumn";
 import { Task } from "@/store/taskStore";
 
@@ -28,10 +29,14 @@ const renderColumn = (tasks: Task[], overrides: Record<string, any> = {}) => {
     onCreateTask: vi.fn(noop),
     onUpdate: vi.fn(),
     onDelete: vi.fn(),
-    onMoveTask: vi.fn(),
     ...overrides,
   };
-  render(<KanbanColumn {...props} />);
+  // The column's droppable/sortable hooks need a DndContext provider.
+  render(
+    <DndContext>
+      <KanbanColumn {...props} />
+    </DndContext>,
+  );
   return props;
 };
 
@@ -82,33 +87,13 @@ describe("KanbanColumn", () => {
     expect(props.onCreateTask).not.toHaveBeenCalled();
   });
 
-  it("dropping on the column appends the task to the end", () => {
-    const props = renderColumn([task("a"), task("b")]);
+  it("renders cards as dnd-kit sortables (touch-capable, not HTML5 DnD)", () => {
+    renderColumn([task("a"), task("b")]);
 
-    // The droppable surface is the container that holds the add-task button
-    const dropZone = screen.getByText("+ Add task").parentElement!;
-    fireEvent.drop(dropZone, {
-      dataTransfer: { getData: (key: string) => (key === "text/taskId" ? "dragged" : "") },
-    });
-
-    expect(props.onMoveTask).toHaveBeenCalledWith("dragged", "IN_PROGRESS", 2);
-  });
-
-  it("dropping on a card inserts before that card", () => {
-    const props = renderColumn([task("a"), task("b")]);
-
-    const secondCardWrapper = screen.getAllByTestId("card")[1].parentElement!;
-    fireEvent.drop(secondCardWrapper, {
-      dataTransfer: { getData: (key: string) => (key === "text/taskId" ? "dragged" : "") },
-    });
-
-    expect(props.onMoveTask).toHaveBeenCalledWith("dragged", "IN_PROGRESS", 1);
-  });
-
-  it("ignores drops with no task id payload", () => {
-    const props = renderColumn([]);
-    const dropZone = screen.getByText("+ Add task").parentElement!;
-    fireEvent.drop(dropZone, { dataTransfer: { getData: () => "" } });
-    expect(props.onMoveTask).not.toHaveBeenCalled();
+    // dnd-kit marks each sortable wrapper with aria-roledescription="sortable"
+    const sortables = document.querySelectorAll('[aria-roledescription="sortable"]');
+    expect(sortables.length).toBe(2);
+    // The legacy HTML5 attribute is gone
+    expect(document.querySelector("[draggable]")).toBeNull();
   });
 });

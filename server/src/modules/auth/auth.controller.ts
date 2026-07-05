@@ -26,6 +26,7 @@ import {
 } from "./auth.model";
 import AppError from "../../utils/AppError";
 import { prisma } from "../../config/prisma";
+import crypto from "node:crypto";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -34,12 +35,21 @@ const COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
+// CSRF double-submit cookie: NOT httpOnly — the client must read it and echo
+// it back in the X-CSRF-Token header on refresh/logout (see verifyCsrf).
+const CSRF_COOKIE_OPTIONS = { ...COOKIE_OPTIONS, httpOnly: false };
+
+const issueCsrfCookie = (res: Response): void => {
+  res.cookie("csrfToken", crypto.randomBytes(32).toString("hex"), CSRF_COOKIE_OPTIONS);
+};
+
 // Register
 export const register = catchAsync(async (req: Request, res: Response) => {
   const body = registerSchema.parse(req.body);
   const result = await registerService(body);
 
   res.cookie("refreshToken", result.refreshToken, COOKIE_OPTIONS);
+  issueCsrfCookie(res);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
@@ -59,6 +69,7 @@ export const login = catchAsync(async (req, res) => {
   const result = await loginService(body);
 
   res.cookie("refreshToken", result.refreshToken, COOKIE_OPTIONS);
+  issueCsrfCookie(res);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -78,8 +89,9 @@ export const refresh = catchAsync(async (req, res) => {
 
   const tokens = await refreshService(token);
 
-  // Set the new rotated refresh token as a cookie
+  // Set the new rotated refresh token as a cookie; rotate the CSRF token too
   res.cookie("refreshToken", tokens.refreshToken, COOKIE_OPTIONS);
+  issueCsrfCookie(res);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -94,6 +106,7 @@ export const logout = catchAsync(async (req: Request, res: Response) => {
   const refreshToken = req.cookies?.refreshToken;
   await logoutService(refreshToken, req.user?.userId);
   res.clearCookie("refreshToken", COOKIE_OPTIONS);
+  res.clearCookie("csrfToken", CSRF_COOKIE_OPTIONS);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

@@ -36,6 +36,7 @@ export const writeAudit = async (entry: AuditEntry): Promise<void> => {
 
 /** Canonical audit action names (keep grep-able and stable). */
 export const AUDIT = {
+  LOGIN_LOCKED: "auth.login_locked",
   USER_ROLE_CHANGED: "user.role_changed",
   USER_DEACTIVATED: "user.deactivated",
   USER_REACTIVATED: "user.reactivated",

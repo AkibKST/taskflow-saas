@@ -21,6 +21,7 @@ import billingRoutes from "./modules/billing/billing.route";
 import { stripeWebhookRouter } from "./modules/billing/billing.webhook";
 import searchRoutes from "./modules/search/search.route";
 import accountRoutes from "./modules/account/account.route";
+import dashboardRoutes from "./modules/dashboard/dashboard.route";
 
 const app = express();
 
@@ -163,6 +164,7 @@ app.use("/api/v1/settings", settingsRoutes);
 app.use("/api/v1/billing", billingRoutes);
 app.use("/api/v1/search", searchRoutes);
 app.use("/api/v1/account", accountRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
 
 // 404 handler
 app.use((_req, res) =>

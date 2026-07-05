@@ -2,7 +2,17 @@
 import { useEffect, useState, SyntheticEvent, ChangeEvent } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import {
+  DndContext,
+  DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { BOARD_COLUMNS, TASK_STATUS, PRIORITY } from "@taskflow/shared";
+import { moveIntentFromDragEnd } from "@/lib/kanbanDnd";
 import { api } from "@/lib/api";
 import { useProjectStore, Project } from "@/store/projectStore";
 import { useSocket } from "@/hooks/useSocket";
@@ -48,6 +58,13 @@ export default function TasksPage() {
 
   useSocket(projectId as string);
   const { tasks, total, isMutating, createTask, updateTask, deleteTask, reorderTasks } = useTasks(projectId as string);
+
+  // dnd-kit sensors: a small mouse-distance threshold keeps clicks/double-clicks
+  // working on cards; a touch long-press starts a drag without hijacking scroll.
+  const dndSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
 
   useEffect(() => {
     api.get<Project>(`/projects/${projectId}`).then((res) => {
@@ -103,6 +120,15 @@ export default function TasksPage() {
       if (t) announceMove(t.title, patch.status);
     }
     updateTask(taskId, patch);
+  };
+
+  // dnd-kit drop → the board's move contract (insert before card at destIndex).
+  const handleDragEnd = (event: DragEndEvent): void => {
+    const counts = Object.fromEntries(
+      Object.entries(tasksByStatus).map(([s, list]) => [s, list.length]),
+    );
+    const intent = moveIntentFromDragEnd(event, counts);
+    if (intent) handleMoveTask(intent.taskId, intent.destStatus, intent.destIndex);
   };
 
   // Drag & drop: move a task into `destStatus` at position `destIndex`,
@@ -228,21 +254,26 @@ export default function TasksPage() {
       {/* Board / List */}
       <main className="p-6">
         {view === "kanban" ? (
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {[...BOARD_COLUMNS].map((col) => (
-              <KanbanColumn
-                key={col}
-                status={col}
-                tasks={tasksByStatus[col] ?? []}
-                projectId={projectId as string}
-                members={members}
-                onMoveTask={handleMoveTask}
-                onCreateTask={createTask}
-                onUpdate={handleUpdateTask}
-                onDelete={deleteTask}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCorners}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {[...BOARD_COLUMNS].map((col) => (
+                <KanbanColumn
+                  key={col}
+                  status={col}
+                  tasks={tasksByStatus[col] ?? []}
+                  projectId={projectId as string}
+                  members={members}
+                  onCreateTask={createTask}
+                  onUpdate={handleUpdateTask}
+                  onDelete={deleteTask}
+                />
+              ))}
+            </div>
+          </DndContext>
         ) : (
           <div className="mx-auto max-w-4xl space-y-2">
             {tasks.length === 0 && (

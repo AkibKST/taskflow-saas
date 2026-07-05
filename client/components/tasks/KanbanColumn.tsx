@@ -1,15 +1,17 @@
 "use client";
-import { useState, FC, SyntheticEvent, ChangeEvent } from "react";
+import { useState, FC, ReactNode, SyntheticEvent, ChangeEvent } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { TaskCard } from "./TaskCard";
 import { PickerMember } from "./AssigneePicker";
 import { Task } from "@/store/taskStore";
 import { Button } from "@/components/ui";
 import { cx } from "@/lib/ui";
+import { columnDroppableId } from "@/lib/kanbanDnd";
 
 /** Soft work-in-progress guideline per column — advisory, never blocking. */
 const WIP_LIMIT = 10;
-
-const DRAG_KEY = "text/taskId";
 
 interface KanbanColumnProps {
   status: string;
@@ -19,8 +21,39 @@ interface KanbanColumnProps {
   onCreateTask: (data: Partial<Task>) => Promise<void>;
   onUpdate: (taskId: string, patch: Partial<Task>) => void;
   onDelete: (taskId: string) => void;
-  onMoveTask: (taskId: string, destStatus: string, destIndex: number) => void;
 }
+
+/** Sortable wrapper — dnd-kit's pointer/touch/keyboard sensors replace HTML5
+ * drag & drop, which never fires on touch devices. Dragging is disabled while
+ * the card's title is being edited so text selection works. */
+const SortableCard: FC<{
+  taskId: string;
+  status: string;
+  index: number;
+  disabled: boolean;
+  children: ReactNode;
+}> = ({ taskId, status, index, disabled, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: taskId,
+    data: { status, index },
+    disabled,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cx(
+        !disabled && "cursor-grab touch-manipulation active:cursor-grabbing",
+        isDragging && "relative z-10 opacity-80",
+      )}
+    >
+      {children}
+    </div>
+  );
+};
 
 export const KanbanColumn: FC<KanbanColumnProps> = ({
   status,
@@ -30,48 +63,13 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
   onCreateTask,
   onUpdate,
   onDelete,
-  onMoveTask,
 }) => {
   const [quickTitle, setQuickTitle] = useState<string>("");
   const [adding, setAdding] = useState<boolean>(false);
-  const [dragOver, setDragOver] = useState<boolean>(false);
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const clearDrag = (): void => {
-    setDragOver(false);
-    setDropIndex(null);
-  };
-
-  const handleCardDragStart = (e: React.DragEvent, taskId: string): void => {
-    e.dataTransfer.setData(DRAG_KEY, taskId);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  // Drop on a specific card → insert before it.
-  const handleCardDrop = (e: React.DragEvent, index: number): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    clearDrag();
-    const taskId = e.dataTransfer.getData(DRAG_KEY);
-    if (taskId) onMoveTask(taskId, status, index);
-  };
-
-  // Drop on the column (not a card) → append to the end.
-  const handleColumnDrop = (e: React.DragEvent): void => {
-    e.preventDefault();
-    clearDrag();
-    const taskId = e.dataTransfer.getData(DRAG_KEY);
-    if (taskId) onMoveTask(taskId, status, tasks.length);
-  };
-
-  const allowDrop = (e: React.DragEvent): void => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  // Thin insertion line showing where the card will land.
-  const placeholder = <div className="h-0.5 rounded-full bg-brand-500" />;
+  // Whole-column drop target: dropping on the column (not a card) appends.
+  const { setNodeRef, isOver } = useDroppable({ id: columnDroppableId(status) });
 
   const handleAdd = async (e: SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -114,34 +112,21 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
       </div>
 
       <div
-        onDragOver={(e) => {
-          allowDrop(e);
-          setDragOver(true);
-          setDropIndex(tasks.length);
-        }}
-        onDragLeave={(e) => {
-          // Only clear when the pointer actually leaves the column.
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDrag();
-        }}
-        onDrop={handleColumnDrop}
+        ref={setNodeRef}
+        data-column={status}
         className={cx(
           "flex min-h-[120px] flex-col gap-2 rounded-2xl p-2 transition-colors",
-          dragOver ? "bg-brand-100 ring-2 ring-brand-300" : "bg-gray-100",
+          isOver ? "bg-brand-100 ring-2 ring-brand-300" : "bg-gray-100",
         )}
       >
-        {tasks.map((task, index) => (
-          <div key={task.id} className="flex flex-col gap-2">
-            {dropIndex === index && placeholder}
-            <div
-              draggable={editingId !== task.id}
-              onDragStart={(e) => handleCardDragStart(e, task.id)}
-              onDragOver={(e) => {
-                allowDrop(e);
-                e.stopPropagation();
-                setDropIndex(index);
-              }}
-              onDrop={(e) => handleCardDrop(e, index)}
-              className={editingId === task.id ? "" : "cursor-grab active:cursor-grabbing"}
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          {tasks.map((task, index) => (
+            <SortableCard
+              key={task.id}
+              taskId={task.id}
+              status={status}
+              index={index}
+              disabled={editingId === task.id}
             >
               <TaskCard
                 task={task}
@@ -151,10 +136,9 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
                 onDelete={onDelete}
                 onEditingChange={(editing) => setEditingId(editing ? task.id : null)}
               />
-            </div>
-          </div>
-        ))}
-        {dropIndex === tasks.length && placeholder}
+            </SortableCard>
+          ))}
+        </SortableContext>
 
         {adding ? (
           <form onSubmit={handleAdd} className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-gray-200/70">

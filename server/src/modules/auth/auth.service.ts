@@ -13,6 +13,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "../../utils/email";
+import { writeAudit, AUDIT } from "../../utils/audit";
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -126,6 +127,12 @@ export const registerService = async (data: RegisterInput) => {
   return { ...tokens, user: result.user, tenant: result.tenant };
 };
 
+// Per-account lockout: the per-IP rate limiter doesn't stop an attacker who
+// rotates IPs against one mailbox, so failed attempts are also counted on the
+// account itself.
+const LOCKOUT_MAX_ATTEMPTS = 10;
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+
 // Login
 export const loginService = async (data: LoginInput) => {
   const user = await prisma.user.findFirst({
@@ -134,8 +141,38 @@ export const loginService = async (data: LoginInput) => {
   });
   if (!user) throw new AppError(401, "Invalid email or password");
 
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    throw new AppError(429, "Too many failed login attempts. Please try again later.");
+  }
+
   const isValid = await bcrypt.compare(data.password, user.passwordHash);
-  if (!isValid) throw new AppError(401, "Invalid email or password");
+  if (!isValid) {
+    const attempts = user.failedLoginCount + 1;
+    const lock = attempts >= LOCKOUT_MAX_ATTEMPTS;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: lock
+        ? { failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCKOUT_WINDOW_MS) }
+        : { failedLoginCount: attempts },
+    });
+    if (lock) {
+      await writeAudit({
+        tenantId: user.tenantId,
+        action: AUDIT.LOGIN_LOCKED,
+        targetType: "User",
+        targetId: user.id,
+        metadata: { email: user.email, attempts },
+      });
+    }
+    throw new AppError(401, "Invalid email or password");
+  }
+
+  if (user.failedLoginCount > 0 || user.lockedUntil) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginCount: 0, lockedUntil: null },
+    });
+  }
 
   const tokens = generateTokens({
     userId: user.id,
@@ -146,7 +183,7 @@ export const loginService = async (data: LoginInput) => {
 
   await saveRefreshToken(user.id, tokens.refreshToken);
 
-  const { passwordHash: _, ...safeUser } = user;
+  const { passwordHash: _, failedLoginCount: _f, lockedUntil: _l, ...safeUser } = user;
   return { ...tokens, user: safeUser };
 };
 

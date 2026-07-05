@@ -15,6 +15,7 @@
     "typecheck": "npm run build:shared && npm run typecheck --workspace server && npm run --workspace client build --if-present",
     "test": "npm run build:shared && npm run test --workspace server",
     "test:integration": "npm run build:shared && npm run test:integration --workspace server",
+    "test:e2e": "npm run build:shared && playwright test",
     "db:generate": "cd server && npx prisma generate",
     "db:migrate": "cd server && npx prisma migrate dev",
     "db:seed": "npm run db:seed --workspace server"
@@ -23,6 +24,7 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/ws": "^8.18.1"
   }
 }

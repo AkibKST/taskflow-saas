@@ -16,12 +16,25 @@ const axiosInstance = axios.create({
   },
 });
 
+// The csrfToken cookie is set by the server (not httpOnly) at login/refresh.
+// Echoing it in a header is the double-submit CSRF proof for cookie-auth
+// endpoints (refresh/logout) — cross-site pages can't read the cookie.
+const getCsrfToken = (): string | null => {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)csrfToken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
 // Request interceptor – attach the in-memory access token from the store
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const { accessToken } = useAuthStore.getState();
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+    const csrf = getCsrfToken();
+    if (csrf) {
+      config.headers["X-CSRF-Token"] = csrf;
     }
     return config;
   },
@@ -51,13 +64,23 @@ const refreshAccessToken = async (): Promise<string> => {
   const { data } = await axios.post(
     `${baseURL}/auth/refresh`,
     {},
-    { withCredentials: true },
+    {
+      withCredentials: true,
+      headers: { "X-CSRF-Token": getCsrfToken() ?? "" },
+    },
   );
   const newToken: string | undefined = data?.data?.accessToken;
   if (!newToken) throw new Error("No access token in refresh response");
   useAuthStore.getState().setAccessToken(newToken);
   return newToken;
 };
+
+// 401s from these endpoints mean "bad credentials/token", not "expired access
+// token" — attempting a refresh (and the redirect on its failure) would wipe
+// the page state and swallow the real error, e.g. a wrong-password message.
+const NO_REFRESH_PATHS = ["/auth/login", "/auth/register", "/auth/refresh"];
+const isNoRefreshPath = (url?: string): boolean =>
+  NO_REFRESH_PATHS.some((p) => url?.includes(p));
 
 axiosInstance.interceptors.response.use(
   (response) => response,
@@ -67,7 +90,8 @@ axiosInstance.interceptors.response.use(
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
-      originalRequest._retry
+      originalRequest._retry ||
+      isNoRefreshPath(originalRequest.url)
     ) {
       return Promise.reject(error);
     }

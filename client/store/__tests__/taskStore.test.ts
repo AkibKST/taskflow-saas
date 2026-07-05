@@ -32,6 +32,26 @@ describe("optimistic add", () => {
     expect(state().isMutating).toBe(false);
   });
 
+  it("appends the server task when the optimistic card was wiped by a stale refetch", () => {
+    // Reproduces the E2E race: setTasks (slow initial fetch) landed after
+    // optimisticAdd and replaced the array, so the temp id no longer exists.
+    state().optimisticAdd(task("temp-1", { _isOptimistic: true }));
+    state().setTasks([], 0);
+
+    state().confirmAdd("temp-1", task("real-1"));
+    expect(state().tasks.map((t) => t.id)).toEqual(["real-1"]);
+    expect(state().total).toBe(1);
+  });
+
+  it("does not duplicate or double-count when the socket echo delivered the task first", () => {
+    state().optimisticAdd(task("temp-1", { _isOptimistic: true }));
+    state().syncCreated(task("real-1")); // own echo arrives before the HTTP response
+
+    state().confirmAdd("temp-1", task("real-1"));
+    expect(state().tasks.map((t) => t.id)).toEqual(["real-1"]);
+    expect(state().total).toBe(1);
+  });
+
   it("removes the temp task on rollback without touching total", () => {
     useTaskStore.setState({ tasks: [task("a")], total: 1 });
     state().optimisticAdd(task("temp-1", { _isOptimistic: true }));

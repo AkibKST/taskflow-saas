@@ -71,11 +71,25 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     })),
 
   confirmAdd: (tempId, realTask) =>
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === tempId ? realTask : t)),
-      total: s.total + 1,
-      isMutating: false,
-    })),
+    set((s) => {
+      // The optimistic card can be gone by now (a slow initial fetch that
+      // resolved after optimisticAdd() replaces the whole array via setTasks),
+      // or the socket echo may have delivered the real task already (which
+      // also bumped total in syncCreated). Cover every combination instead of
+      // silently dropping the confirmed task.
+      const hasReal = s.tasks.some((t) => t.id === realTask.id);
+      const hasTemp = s.tasks.some((t) => t.id === tempId);
+      const tasks = hasReal
+        ? s.tasks.filter((t) => t.id !== tempId)
+        : hasTemp
+          ? s.tasks.map((t) => (t.id === tempId ? realTask : t))
+          : [...s.tasks, realTask];
+      return {
+        tasks,
+        total: hasReal ? s.total : s.total + 1,
+        isMutating: false,
+      };
+    }),
 
   rollbackAdd: (tempId) =>
     set((s) => ({
