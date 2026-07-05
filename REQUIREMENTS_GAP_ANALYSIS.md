@@ -22,6 +22,8 @@
 | **Missing `/dashboard/summary` endpoint** | Found by the new E2E tooling: the dashboard page has always called it and silently swallowed the 404, so its stat cards never populated. Implemented in `server/src/modules/dashboard/` (per-user + admin tenant-wide aggregates), 3 integration tests, documented in `API_LIST.md`. |
 | **Optimistic-create race on the board** | Found by E2E: a slow initial task fetch resolving after a quick-add wiped the optimistic card, and `confirmAdd` silently dropped the confirmed task (board showed "1 total", zero cards). `taskStore.confirmAdd` now handles wiped-temp and socket-echo-first orderings; regression unit tests added. |
 | **Wrong-password error never displayed** | Found by E2E: the axios interceptor treated the login 401 as an expired session, attempted a refresh, and its failure hard-redirected to `/login` — wiping the form and the error. Auth endpoints are now excluded from the refresh-retry path. |
+| **Backup/restore & DR docs (was P4)** | `BACKUP_RESTORE.md`: Neon point-in-time restore, `pg_dump`/`pg_restore` procedure, S3 attachment versioning, post-restore checklist, and a yearly DR drill with RPO/RTO targets. The drill itself still needs one real run. |
+| **Load-test script (was P4)** | `load/board.k6.js` — self-seeding k6 scenario for the board hot path (task list + batch reorder), with thresholds and rate-limiter caveats documented in the file. Establishing the actual baseline still requires installing k6 and one run against the compose stack. |
 
 Earlier-closed items (client unit tests + CI wiring, SSO claim removal, storage
 production warning, `client/.env.example`) are recorded in Revision 2 (git
@@ -110,14 +112,11 @@ These are absent entirely; prioritize based on target users:
   drift from the code. Generate a spec from the existing Zod schemas
   (`zod-to-openapi`) and serve Swagger UI at `/api/docs`.
 
-### 6. No backup/restore or disaster-recovery documentation
-- Document the `pg_dump`/restore procedure (or Neon's point-in-time
-  recovery) and test it once.
-
-### 7. No load testing
-- The socket layer and the board-reorder endpoint have never been
-  benchmarked. A short k6 script against `docker compose` would establish
-  a baseline.
+### 6. Load-test baseline not yet recorded
+- The k6 script exists (`load/board.k6.js`) but has never been run —
+  install k6, run it against the compose stack with `NODE_ENV=test`, and
+  record p95 numbers in this document. The DR drill in `BACKUP_RESTORE.md`
+  likewise needs its first real run.
 
 ---
 
