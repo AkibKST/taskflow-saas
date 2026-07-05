@@ -48,7 +48,7 @@ const PLANS = [
     description: "For large organizations with advanced needs.",
     features: [
       "Unlimited everything",
-      "SSO / SAML",
+      "Workspace data export (GDPR)",
       "Advanced audit logs",
       "Dedicated support",
       "Custom integrations",

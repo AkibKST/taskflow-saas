@@ -3,6 +3,7 @@ import app from "./app";
 import { initSocket } from "./socket";
 import { prisma } from "./config/prisma";
 import { logger } from "./utils/logger";
+import { envVars } from "./config/env";
 import { withJobLock } from "./utils/jobLock";
 import { initObservability, captureException } from "./utils/observability";
 import { pruneRefreshTokens } from "./jobs/pruneRefreshTokens";
@@ -48,6 +49,16 @@ const scheduleJob = (
 };
 
 const startServer = async () => {
+  // Local-disk attachments don't survive container restarts and break with
+  // 2+ instances. Not a hard fail (single-instance compose mounts a volume
+  // and is fine), but production operators must opt in knowingly.
+  if (process.env.NODE_ENV === "production" && envVars.STORAGE_DRIVER === "local") {
+    logger.warn(
+      "STORAGE_DRIVER=local in production — attachments are stored on the container filesystem. " +
+        "They are lost on restart unless a volume is mounted and will NOT work with multiple instances. Set STORAGE_DRIVER=s3."
+    );
+  }
+
   try {
     await prisma.$connect();
     logger.info("Database connected successfully");

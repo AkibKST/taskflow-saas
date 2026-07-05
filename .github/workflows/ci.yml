@@ -88,6 +88,11 @@ jobs:
         run: npx next lint
         working-directory: client
 
+      # Component/store/hook tests: optimistic UI + rollback, socket-echo
+      # de-duplication, kanban column drag/drop handlers, auth persistence.
+      - name: Client unit tests
+        run: npm run test --workspace client
+
       # Full production build — catches Next.js SSG/tsc-emit breakage that a
       # typecheck alone would miss.
       - name: Production build (server + client)
